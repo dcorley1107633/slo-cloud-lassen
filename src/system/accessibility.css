@@ -1,0 +1,225 @@
+/* Shared WCAG 2.2 foundations for every SLOCloud theme. */
+:root {
+    --a11y-focus: #0b57d0;
+    --a11y-focus-shadow: rgba(11, 87, 208, 0.28);
+}
+
+html {
+    scroll-padding-top: 5rem;
+}
+
+body {
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])) {
+    scroll-margin-block: 5rem 1rem;
+}
+
+.skip-link {
+    position: fixed;
+    inset: 0 auto auto 0;
+    z-index: 11000;
+    padding: 0.75rem 1rem;
+    transform: translateY(-120%);
+    background: #fff;
+    color: #0a3d91;
+    border: 3px solid currentColor;
+    font-weight: 700;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+    transform: translateY(0);
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid #fff !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 6px var(--a11y-focus) !important;
+}
+
+:where(button, .btn, .nav-link, .dropdown-item, input:not([type="hidden"]), select, textarea, summary) {
+    min-height: 24px;
+}
+
+.btn-sm,
+.btn-close,
+.btn-tool,
+.form-check-input {
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.form-check-input + .form-check-label {
+    padding-block: 0.1rem;
+}
+
+.form-control,
+.form-select,
+.form-check-input {
+    border-color: #6c757d;
+}
+
+.text-info {
+    color: #087990 !important;
+}
+
+.text-warning {
+    color: #806000 !important;
+}
+
+.bg-info {
+    background-color: #087990 !important;
+}
+
+caption {
+    caption-side: top;
+    color: inherit;
+    font-weight: 600;
+}
+
+[role="status"]:empty,
+[aria-live]:empty {
+    min-height: 1px;
+}
+
+.a11y-error-summary a {
+    color: inherit;
+    font-weight: 600;
+}
+
+.a11y-session-dialog {
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    padding: 1.5rem;
+    color: #212529;
+    background: #fff;
+    border: 3px solid #0b57d0;
+    border-radius: 0.5rem;
+}
+
+.a11y-session-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.65);
+}
+
+.a11y-session-dialog h2 {
+    margin-top: 0;
+}
+
+.a11y-session-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.modal,
+.toast-container,
+.app-header {
+    scroll-margin-top: 5rem;
+}
+
+.card,
+.modal-content,
+.alert,
+fieldset,
+.row > * {
+    min-width: 0;
+}
+
+.toast-container {
+    max-width: calc(100vw - 2rem);
+    pointer-events: none;
+}
+
+.toast-container .toast {
+    max-width: 100%;
+    pointer-events: auto;
+}
+
+@media (max-width: 575.98px) {
+    .d-flex {
+        flex-wrap: wrap;
+    }
+
+    .btn-group:not(.outcome-buttons) {
+        flex-wrap: wrap;
+    }
+
+    .table-responsive {
+        max-width: 100%;
+    }
+
+    .modal-dialog {
+        width: auto;
+        max-width: calc(100vw - 1rem);
+        margin-inline: 0.5rem;
+    }
+
+    .card-header,
+    .card-tools,
+    .app-header .container-fluid,
+    .navbar-nav {
+        flex-wrap: wrap;
+    }
+
+    input,
+    select,
+    textarea {
+        max-width: 100%;
+    }
+
+    .toast-container {
+        right: 1rem !important;
+        left: 1rem !important;
+        width: auto !important;
+    }
+
+    .toast-container .toast {
+        width: auto;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .metis-wrapper {
+        display: block !important;
+    }
+
+    .metis-sidebar {
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+
+    .metis-main {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (forced-colors: active) {
+    :where(a, button, input, select, textarea, summary):focus-visible {
+        outline: 3px solid Highlight !important;
+        box-shadow: none !important;
+    }
+
+    .btn,
+    .form-control,
+    .form-select {
+        border: 1px solid ButtonText;
+    }
+}

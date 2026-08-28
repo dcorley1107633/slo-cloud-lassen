@@ -1,0 +1,14 @@
+term_code,program_code,program_name,department_code,degree_type,degree_type_desc
+202630,AS_ACCT,Accounting,BUSA,AS,Associate in Science
+202630,CN_ACCT,Accounting,BUSA,CN,Certificate of Achievement
+202630,AS_CIS,Computer Information Systems,COMP,AS,Associate in Science
+202630,CN_CIS,Computer Information Systems,COMP,CN,Certificate of Achievement
+202630,AS_CYBR,Cybersecurity,COMP,AS,Associate in Science
+202630,AA_ENGL,English,ENGL,AA,Associate in Arts
+202630,AAT_ENGL,English,ENGL,AAT,Associate in Arts for Transfer
+202630,AST_BIOL,Biology,BIOL,AST,Associate in Science for Transfer
+202630,AA_HIST,History,HIST,AA,Associate in Arts
+202630,AAT_HIST,History,HIST,AAT,Associate in Arts for Transfer
+202630,AS_MATH,Mathematics,MATH,AS,Associate in Science
+202630,AA_PSYC,Psychology,PSYC,AA,Associate in Arts
+202630,AAT_SOC,Sociology,SOC,AAT,Associate in Arts for Transfer

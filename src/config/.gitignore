@@ -1,0 +1,16 @@
+# SECURITY: Never commit actual configuration or keys to version control
+
+# Ignore all actual config and key files
+config.yaml
+key.yaml
+*.key
+
+# Ignore environment files
+.env
+.env.local
+.env.production
+
+# Keep templates and README in git
+!config.yaml.template
+!key.yaml.example
+!README.md

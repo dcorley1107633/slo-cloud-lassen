@@ -1,0 +1,24 @@
+{
+    "id": 0,
+    "name": "Enrollment by course",
+    "description": "Compare enrollment counts by course across selected terms.",
+    "base_table": "terms",
+    "joins": [
+        "sections.term_fk->terms.terms_pk",
+        "sections.course_fk->courses.courses_pk",
+        "enrollment.section_fk->sections.sections_pk",
+        "courses.discipline_fk->disciplines.disciplines_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "disciplines", "field": "discipline_code", "label": "Discipline", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "courses", "field": "course_number", "label": "Course", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "enrollment", "field": "enrollment_pk", "label": "Enrollment", "aggregate": "count", "sort": "", "break": false, "summarize": true }
+    ],
+    "filters": [
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "disciplines", "field": "discipline_code", "operator": "in", "control": "multi_select", "label": "Disciplines", "required": false, "default": [], "default_to": "" },
+        { "table": "courses", "field": "course_number", "operator": "in", "control": "multi_select", "label": "Courses", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 1000, "grand_total": true }
+}

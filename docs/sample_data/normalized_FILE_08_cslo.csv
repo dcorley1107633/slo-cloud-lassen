@@ -1,0 +1,88 @@
+term_code,cslo_code,cslo_language,course_code,cslo_sequence_num
+202630,BUSA_C100_CSLO1,Identify and describe key functions of business organizations and their roles in the economy.,BUSA C100,1
+202630,BUSA_C100_CSLO2,Analyze ethical issues that arise in business decision-making.,BUSA C100,2
+202630,BUSA_C101_CSLO1,Complete an accounting cycle for a sole proprietorship according to Generally Accepted Accounting Principles (GAAP).,BUSA C101,1
+202630,BUSA_C101_CSLO2,"Analyze and record transactions in applicable journals, post to a general ledger, and prepare basic financial statements.",BUSA C101,2
+202630,BUSA_C101_CSLO3,Prepare and explain bank reconciliation statements and petty cash records.,BUSA C101,3
+202630,BUSA_C102_CSLO1,"Design, analyze, and interpret accounting information for planning and business decisions.",BUSA C102,1
+202630,BUSA_C102_CSLO2,Develop and defend capital budgeting decisions using quantitative analysis.,BUSA C102,2
+202630,BUSA_C102_CSLO3,"Prepare, evaluate, and interpret financial statements using ratio and cash flow analysis.",BUSA C102,3
+202630,BUSA_C110_CSLO1,Identify the sources and classifications of law governing business transactions.,BUSA C110,1
+202630,BUSA_C110_CSLO2,Analyze legal issues in contract formation and enforcement.,BUSA C110,2
+202630,BUSA_C120_CSLO1,Compose professional business documents including reports and correspondence.,BUSA C120,1
+202630,BUSA_C120_CSLO2,Deliver effective oral business presentations to professional audiences.,BUSA C120,2
+202630,BUSA_C200_CSLO1,Apply management theories and principles to organizational problem-solving.,BUSA C200,1
+202630,BUSA_C200_CSLO2,Develop and evaluate strategic plans for an organization.,BUSA C200,2
+202630,COMP_C100_CSLO1,Describe fundamental concepts of computation and hardware/software systems.,COMP C100,1
+202630,COMP_C100_CSLO2,Identify and apply basic security and ethical practices in computing.,COMP C100,2
+202630,COMP_C110_CSLO1,Design and implement programs using variables and control structures.,COMP C110,1
+202630,COMP_C110_CSLO2,Apply functions and modular design principles to decompose programming problems.,COMP C110,2
+202630,COMP_C110_CSLO3,Debug and test programs systematically to identify and resolve errors.,COMP C110,3
+202630,COMP_C120_CSLO1,Implement common data structures including arrays and linked lists.,COMP C120,1
+202630,COMP_C120_CSLO2,Analyze the time and space complexity of algorithms.,COMP C120,2
+202630,COMP_C140_CSLO1,Build interactive web pages using HTML and CSS.,COMP C140,1
+202630,COMP_C140_CSLO2,Implement client-side scripting to validate forms and manipulate the DOM.,COMP C140,2
+202630,COMP_C210_CSLO1,Design relational database schemas using normalization principles.,COMP C210,1
+202630,COMP_C210_CSLO2,Write SQL queries to retrieve and manipulate data.,COMP C210,2
+202630,COMP_C220_CSLO1,Explain the OSI model and how network protocols function at each layer.,COMP C220,1
+202630,COMP_C220_CSLO2,Configure and troubleshoot basic local area network devices.,COMP C220,2
+202630,COMP_C230_CSLO1,Identify common cybersecurity threats and the controls used to mitigate them.,COMP C230,1
+202630,COMP_C230_CSLO2,Apply security frameworks and best practices to protect information systems.,COMP C230,2
+202630,ENGL_C100_CSLO1,"Write a well-organized essay with a clear thesis, coherent structure, and adequate supporting evidence.",ENGL C100,1
+202630,ENGL_C100_CSLO2,Revise writing based on feedback to improve clarity and argumentation.,ENGL C100,2
+202630,ENGL_C101_CSLO1,Analyze arguments for logical validity and identify rhetorical strategies.,ENGL C101,1
+202630,ENGL_C101_CSLO2,Evaluate the credibility and relevance of sources for academic writing.,ENGL C101,2
+202630,ENGL_C102_CSLO1,"Interpret literary texts using close reading, identifying theme, setting, and character.",ENGL C102,1
+202630,ENGL_C102_CSLO2,Write analytical essays that support an interpretation of a literary work with textual evidence.,ENGL C102,2
+202630,ENGL_C200_CSLO1,Compose a research paper that integrates multiple scholarly sources using correct MLA documentation.,ENGL C200,1
+202630,ENGL_C200_CSLO2,Develop an original argument and sustain it across a multi-page academic essay.,ENGL C200,2
+202630,ENGL_C210_CSLO1,Compare literary works from multiple cultural traditions and historical periods.,ENGL C210,1
+202630,ENGL_C210_CSLO2,Evaluate the cultural context that shaped the creation and reception of world literary texts.,ENGL C210,2
+202630,BIOL_C100_CSLO1,Explain the cell theory and describe the structural and functional characteristics of prokaryotic and eukaryotic cells.,BIOL C100,1
+202630,BIOL_C100_CSLO2,Apply the principles of inheritance to predict patterns of genetic transmission.,BIOL C100,2
+202630,BIOL_C100_CSLO3,Analyze the evidence for evolutionary change and describe mechanisms of natural selection.,BIOL C100,3
+202630,BIOL_C110_CSLO1,Describe the structure and function of DNA and explain how genetic information is expressed.,BIOL C110,1
+202630,BIOL_C110_CSLO2,Predict the outcomes of genetic crosses using Mendelian and non-Mendelian inheritance patterns.,BIOL C110,2
+202630,BIOL_C120_CSLO1,Identify the major body systems and explain how they interact to maintain homeostasis.,BIOL C120,1
+202630,BIOL_C120_CSLO2,Relate lifestyle and environmental factors to human health outcomes.,BIOL C120,2
+202630,BIOL_C130_CSLO1,Describe the interactions between organisms and their physical environment.,BIOL C130,1
+202630,BIOL_C130_CSLO2,Evaluate human impacts on ecosystems and propose evidence-based conservation strategies.,BIOL C130,2
+202630,BIOL_C200_CSLO1,Identify and classify microorganisms based on morphological and biochemical characteristics.,BIOL C200,1
+202630,BIOL_C200_CSLO2,Apply aseptic technique and laboratory safety protocols in microbiological investigations.,BIOL C200,2
+202630,HIST_C100_CSLO1,Describe major political and cultural developments in world civilizations from prehistory to 1500 CE.,HIST C100,1
+202630,HIST_C100_CSLO2,Analyze primary source documents to interpret historical events and perspectives.,HIST C100,2
+202630,HIST_C101_CSLO1,Explain major global transformations since 1500 including industrialization and decolonization.,HIST C101,1
+202630,HIST_C101_CSLO2,Evaluate the significance of diversity and cross-cultural exchange in shaping modern world history.,HIST C101,2
+202630,HIST_C110_CSLO1,Describe the political and social foundations of the United States from colonial origins through Reconstruction.,HIST C110,1
+202630,HIST_C110_CSLO2,Analyze primary sources to interpret causes and consequences of major events in early American history.,HIST C110,2
+202630,HIST_C111_CSLO1,"Explain major developments in United States history from 1877 to the present, including industrialization, civil rights, and foreign policy.",HIST C111,1
+202630,HIST_C111_CSLO2,Evaluate competing historical interpretations of significant events in modern American history.,HIST C111,2
+202630,HIST_C120_CSLO1,Trace the political and economic development of California from indigenous peoples to the present.,HIST C120,1
+202630,HIST_C120_CSLO2,Analyze the role of diverse communities in shaping California's history.,HIST C120,2
+202630,MATH_C100_CSLO1,"Graph and analyze polynomial, rational, exponential, and trigonometric functions.",MATH C100,1
+202630,MATH_C100_CSLO2,Solve equations and systems of equations using algebraic and graphical methods.,MATH C100,2
+202630,MATH_C110_CSLO1,Compute limits and derivatives of algebraic and transcendental functions.,MATH C110,1
+202630,MATH_C110_CSLO2,Apply differentiation to solve optimization and related-rates problems.,MATH C110,2
+202630,MATH_C111_CSLO1,Evaluate definite and indefinite integrals using standard techniques.,MATH C111,1
+202630,MATH_C111_CSLO2,Apply integration to calculate area and volume.,MATH C111,2
+202630,MATH_C120_CSLO1,Compute descriptive statistics and interpret graphical data summaries.,MATH C120,1
+202630,MATH_C120_CSLO2,Apply probability concepts to calculate the likelihood of events.,MATH C120,2
+202630,MATH_C120_CSLO3,Conduct and interpret hypothesis tests and confidence intervals.,MATH C120,3
+202630,MATH_C130_CSLO1,Perform matrix operations and solve systems of linear equations.,MATH C130,1
+202630,MATH_C130_CSLO2,Compute eigenvalues and eigenvectors and interpret their geometric meaning.,MATH C130,2
+202630,PSYC_C100_CSLO1,Describe the major theoretical perspectives and research methods used in psychology.,PSYC C100,1
+202630,PSYC_C100_CSLO2,Apply psychological principles to explain everyday human behavior.,PSYC C100,2
+202630,PSYC_C110_CSLO1,Analyze the influence of group membership and social context on individual behavior and attitudes.,PSYC C110,1
+202630,PSYC_C110_CSLO2,Evaluate classic and contemporary social psychology research.,PSYC C110,2
+202630,PSYC_C120_CSLO1,Describe major physical and cognitive milestones across the lifespan.,PSYC C120,1
+202630,PSYC_C120_CSLO2,Apply developmental theories to explain behavioral changes from infancy through late adulthood.,PSYC C120,2
+202630,PSYC_C130_CSLO1,Design a research study using appropriate quantitative or qualitative methodology.,PSYC C130,1
+202630,PSYC_C130_CSLO2,Collect and analyze data and report findings in APA format.,PSYC C130,2
+202630,SOC_C100_CSLO1,Explain the sociological imagination and apply it to personal experiences and social structures.,SOC C100,1
+202630,SOC_C100_CSLO2,Compare major sociological theories and their explanations of social phenomena.,SOC C100,2
+202630,SOC_C110_CSLO1,Identify and analyze major social problems facing contemporary society.,SOC C110,1
+202630,SOC_C110_CSLO2,Evaluate proposed policy solutions to social problems using sociological evidence.,SOC C110,2
+202630,SOC_C120_CSLO1,Describe the dimensions of cultural diversity and their origins.,SOC C120,1
+202630,SOC_C120_CSLO2,Analyze the impact of race and ethnicity on social stratification and inequality.,SOC C120,2
+202630,SOC_C130_CSLO1,Design a sociological research study using appropriate quantitative or qualitative methods.,SOC C130,1
+202630,SOC_C130_CSLO2,Collect and interpret sociological data and communicate findings clearly.,SOC C130,2

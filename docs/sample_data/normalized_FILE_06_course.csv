@@ -1,0 +1,42 @@
+term_code,course_code,course_name,department_code
+202630,BUSA C100,Introduction to Business,BUSA
+202630,BUSA C101,Financial Accounting,BUSA
+202630,BUSA C102,Managerial Accounting,BUSA
+202630,BUSA C110,Business Law,BUSA
+202630,BUSA C120,Business Communication,BUSA
+202630,BUSA C200,Principles of Management,BUSA
+202630,COMP C100,Introduction to Computer Science,COMP
+202630,COMP C110,Programming Fundamentals,COMP
+202630,COMP C120,Data Structures,COMP
+202630,COMP C140,Web Development Fundamentals,COMP
+202630,COMP C210,Database Management Systems,COMP
+202630,COMP C220,Network Fundamentals,COMP
+202630,COMP C230,Cybersecurity Essentials,COMP
+202630,ENGL C100,English Composition,ENGL
+202630,ENGL C101,Critical Thinking and Writing,ENGL
+202630,ENGL C102,Introduction to Literature,ENGL
+202630,ENGL C200,Advanced Composition,ENGL
+202630,ENGL C210,World Literature,ENGL
+202630,BIOL C100,Principles of Biology,BIOL
+202630,BIOL C110,Cell Biology and Genetics,BIOL
+202630,BIOL C120,Human Biology,BIOL
+202630,BIOL C130,Environmental Biology,BIOL
+202630,BIOL C200,Microbiology,BIOL
+202630,HIST C100,World History to 1500,HIST
+202630,HIST C101,World History since 1500,HIST
+202630,HIST C110,United States History to 1877,HIST
+202630,HIST C111,United States History since 1877,HIST
+202630,HIST C120,California History,HIST
+202630,MATH C100,Pre-Calculus,MATH
+202630,MATH C110,Calculus I,MATH
+202630,MATH C111,Calculus II,MATH
+202630,MATH C120,Statistics,MATH
+202630,MATH C130,Linear Algebra,MATH
+202630,PSYC C100,General Psychology,PSYC
+202630,PSYC C110,Social Psychology,PSYC
+202630,PSYC C120,Developmental Psychology,PSYC
+202630,PSYC C130,Research Methods in Psychology,PSYC
+202630,SOC C100,Introduction to Sociology,SOC
+202630,SOC C110,Social Problems,SOC
+202630,SOC C120,Cultural Diversity,SOC
+202630,SOC C130,Research Methods in Sociology,SOC

@@ -1,0 +1,498 @@
+# SLOCloud Configuration Template
+# This file defines all available configuration options with metadata for UI generation
+# Copy to config.yaml and update with your settings
+
+# Database Configuration
+database:
+  # @label: Database Driver
+  # @description: Database system to use
+  # @required: true
+  # @type: select
+  # @options: mysql,mssql
+  # @default: mysql
+  # @help: Choose 'mysql' for MySQL/MariaDB or 'mssql' for Microsoft SQL Server. WARNING: This setting is locked after installation and cannot be changed.
+  driver: mysql
+  
+  # @label: Database Host
+  # @description: Database server hostname or IP address
+  # @required: true
+  # @type: string
+  # @default: localhost
+  # @validation: ^[a-zA-Z0-9.-]+$
+  host: localhost
+  
+  # @label: Database Port
+  # @description: Database server port number (MySQL: 3306, MSSQL: 1433)
+  # @required: true
+  # @type: integer
+  # @default: 3306
+  # @validation: min=1,max=65535
+  port: 3306
+  
+  # @label: Database Name
+  # @description: Name of the database to use for SLOCloud
+  # @required: true
+  # @type: string
+  # @validation: ^[a-zA-Z0-9_-]+$
+  # @help: Must be alphanumeric with underscores or hyphens only. WARNING: This setting is locked after installation and cannot be changed.
+  name: slocloud_db
+  
+  # @label: Table Prefix
+  # @description: Optional prefix for all database tables
+  # @required: false
+  # @type: string
+  # @default: slocloud_tbl_
+  # @validation: ^[a-zA-Z0-9_]*$
+  # @help: Leave empty for no prefix. Must end with underscore if used. WARNING: This setting is locked after installation and cannot be changed.
+  prefix: slocloud_tbl_
+  
+  # @label: Database Username
+  # @description: Database user with access to the database
+  # @required: true
+  # @type: string
+  username: slocloud_user
+  
+  # @label: Database Password
+  # @description: Password for database user
+  # @required: true
+  # @type: password
+  # @help: Can be encrypted with security.encryption_key (recommended) or stored as plaintext
+  password: your_password_here
+  
+  # @label: Character Set
+  # @description: Database character encoding (MySQL only)
+  # @required: false
+  # @type: select
+  # @options: utf8mb4,utf8,latin1
+  # @default: utf8mb4
+  # @help: utf8mb4 recommended for full Unicode support. SQL Server uses NVARCHAR with UTF-16 by default.
+  charset: utf8mb4
+
+# Application Settings
+app:
+  # @label: Site Name
+  # @description: Display name for your SLOCloud installation
+  # @required: true
+  # @type: string
+  # @default: SLOCloud
+  name: SLOCloud
+  
+  # @label: Timezone
+  # @description: Server timezone for date/time operations
+  # @required: true
+  # @type: timezone
+  # @default: America/Los_Angeles
+  # @help: See https://www.php.net/manual/en/timezones.php for valid values
+  timezone: America/Los_Angeles
+  
+  # @label: Base URL Path
+  # @description: URL path where SLOCloud is installed (relative to domain)
+  # @required: true
+  # @type: string
+  # @default: /
+  # @validation: ^/.*
+  # @help: Use / for domain root, or /beta/ for subdirectory. Must start with /
+  base_url: /
+  
+  # @label: Debug Mode
+  # @description: Enable detailed error messages and logging
+  # @required: true
+  # @type: boolean
+  # @default: false
+  # @help: Set to false in production for security. Also enables authentication debug logging.
+  debug_mode: false
+  
+  # @label: PHP Error Mode
+  # @description: Controls how PHP errors are displayed and logged
+  # @required: true
+  # @type: select
+  # @options: off|Off (No Errors),logged|Logged Only (Production),onscreen|Display On Screen (Development),system|Use System Default (php.ini)
+  # @default: logged
+  # @help: 'off' = no error reporting (not recommended); 'logged' = log to file only (recommended for production); 'onscreen' = display errors on page (development only - UNSAFE for production); 'system' = use php.ini settings. Works with debug_mode for comprehensive error handling.
+  php_error_mode: logged
+
+  # @label: Copyright Start Year
+  # @description: Starting year for copyright notice
+  # @required: false
+  # @type: integer
+  # @default: 2024
+  # @validation: min=2000,max=9999
+  # @help: Year when SLOCloud was first deployed at your institution
+  copyright_year_start: 2024
+  
+  # @label: Copyright Organization
+  # @description: Organization name for copyright notice
+  # @required: false
+  # @type: string
+  # @default: SLOCloud
+  # @help: Displayed in footer copyright notice
+  copyright_organization: SLOCloud
+  
+  # @label: Copyright Tagline
+  # @description: Tagline text after copyright
+  # @required: false
+  # @type: string
+  # @default: Student Learning Outcomes Assessment
+  # @help: Descriptive text shown after organization name in footer
+  copyright_tagline: Student Learning Outcomes Assessment
+  
+  # @label: Degree Types
+  # @description: Available degree types for academic programs
+  # @required: false
+  # @type: list
+  # @default: Associate of Arts (AA),Associate of Science (AS),Associate in Arts for Transfer (AA-T),Associate in Science for Transfer (AS-T),Bachelor of Science (BS),Bachelor of Applied Science (BAS),Certificate of Achievement (16 or more semester units),Certificate of Achievement (8-15.5 semester units),Local Certificate (fewer than 8 semester units),Noncredit Certificate of Completion,Noncredit Certificate of Competency
+  # @help: Comma-separated list of degree types (California Community College standard degree types)
+  degree_types: "|Associate of Arts (AA)||Associate of Science (AS)||Associate in Arts for Transfer (AA-T)||Associate in Science for Transfer (AS-T)||Bachelor of Science (BS)||Bachelor of Applied Science (BAS)||Certificate of Achievement (16 or more semester units)||Certificate of Achievement (8-15.5 semester units)||Local Certificate (fewer than 8 semester units)||Noncredit Certificate of Completion||Noncredit Certificate of Competency|"
+  
+  # @label: Assessment Types
+  # @description: Available assessment methods for SLO evaluation
+  # @required: false
+  # @type: string
+  # @help: Comma-separated list of assessment types (e.g., Quiz, Exam, Project, Assignment)
+  assessment_types: "|Assignment||Capstone||Discussion||Essay||Exam||Final Exam||Homework||Lab Report||Midterm Exam||Performance Assessment||Portfolio||Practical||Exam||Presentation||Project||Quiz|"
+  
+  # @label: Continuous Improvement Strategies
+  # @description: Available continuous improvement strategies for assessment
+  # @required: false
+  # @type: string
+  # @help: Comma-separated list of improvement strategies that faculty can select when documenting assessment changes
+  improvement_strategies: "|Active learning strategies||Assessment instrument revision||Assignment redesign aligned to SLOs||Capstone or signature assignment implementation||Close-the-loop documentation and reassessment||Course content revision||Course sequencing adjustments||Curriculum mapping (course-to-program alignment)||Disaggregation of SLO data for equity analysis||Early alert and targeted intervention||Faculty professional development||Instructional modality adjustments||OER adoption or development||Practice tests or low-stakes quizzes||Prerequisite review or modification||Rubric development or calibration||Scaffolded learning activities||Student feedback (surveys or focus groups)||Supplemental instruction or embedded tutoring||Technology-enhanced learning tools|"
+  
+  # @label: Maintenance Mode
+  # @description: Enable maintenance mode to restrict access to admin users only
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: When enabled, only users in the users table can access the system. Non-admin users see the maintenance message.
+  maintenance_mode: false
+  
+  # @label: Maintenance Message
+  # @description: Message displayed to users when maintenance mode is enabled
+  # @required: false
+  # @type: text
+  # @default: SLOCloud is currently undergoing maintenance. Please check back later.
+  # @help: Customize this message to inform users about the maintenance window or expected downtime.
+  maintenance_message: SLOCloud is currently undergoing maintenance. Please check back later.
+
+# Logging
+logging:
+  # @label: Log Directory
+  # @description: Filesystem path where log files are written
+  # @required: false
+  # @type: string
+  # @default: (empty - uses the protected application data directory)
+  # @help: Set an absolute path outside the web root (e.g. /var/log/slocloud or C:\logs\slocloud). Leave empty to use the runtime-created logs directory beside the deployed application data.
+  log_directory:
+
+  # @label: Log to File
+  # @description: Enable file-based logging
+  # @required: false
+  # @type: boolean
+  # @default: true
+  log_to_file: true
+
+  # @label: Max Log Age (Days)
+  # @description: Number of days to retain log files before cleanup
+  # @required: false
+  # @type: integer
+  # @default: 90
+  max_log_age_days: 90
+
+# Theme Configuration
+theme:
+  # @label: Default Theme
+  # @description: Default theme for public pages
+  # @required: false
+  # @type: select
+  # @options: theme-default|Default (Bootstrap 5 - Minimal),theme-adminlte|AdminLTE 4,theme-metis|Metis Material Design
+  # @default: theme-default
+  # @help: Used for login, error pages, and other public pages
+  active_theme: theme-default
+  
+  # @label: Admin Theme
+  # @description: Theme for administrative dashboard and tools
+  # @required: false
+  # @type: select
+  # @options: theme-default|Default (Bootstrap 5 - Minimal),theme-adminlte|AdminLTE 4 (Recommended),theme-metis|Metis Material Design
+  # @default: theme-adminlte
+  # @help: Use theme-adminlte for full admin interface with sidebar navigation
+  admin_theme: theme-adminlte
+  
+  # @label: LTI Theme
+  # @description: Theme for LTI-embedded pages (iframe context)
+  # @required: false
+  # @type: select
+  # @options: theme-default|Default (Bootstrap 5 - Minimal),theme-adminlte|AdminLTE 4,theme-metis|Metis Material Design
+  # @default: theme-default
+  # @help: Lightweight theme for LTI tools embedded in LMS iframes
+  lti_theme: theme-default
+
+# Email Configuration
+email:
+  # @label: Email Method
+  # @description: How to send email notifications
+  # @required: true
+  # @type: select
+  # @options: disabled|Disabled (No Email),smtp|SMTP Server,sendmail|Sendmail,mail|PHP mail()
+  # @default: disabled
+  # @help: SMTP recommended for reliability
+  method: disabled
+  
+  # @label: From Email Address
+  # @description: Email address shown as sender
+  # @required: false
+  # @type: email
+  # @validation: email
+  # @help: Required if email method is not disabled
+  from_email: noreply@example.com
+  
+  # @label: From Name
+  # @description: Display name shown as sender
+  # @required: false
+  # @type: string
+  # @default: SLOCloud
+  from_name: SLOCloud
+  
+  # @label: SMTP Host
+  # @description: SMTP server hostname
+  # @required: false
+  # @type: string
+  # @help: Required if method is smtp
+  smtp_host: localhost
+  
+  # @label: SMTP Port
+  # @description: SMTP server port
+  # @required: false
+  # @type: integer
+  # @default: 587
+  # @validation: min=1,max=65535
+  # @help: Common ports: 25 (unencrypted), 587 (TLS), 465 (SSL)
+  smtp_port: 587
+  
+  # @label: SMTP Username
+  # @description: Username for SMTP authentication
+  # @required: false
+  # @type: string
+  # @help: Required if SMTP server requires authentication
+  smtp_username: smtp_username 
+  
+  # @label: SMTP Password
+  # @description: Password for SMTP authentication
+  # @required: false
+  # @type: password
+  # @help: Can be encrypted with security.encryption_key (recommended) or stored as plaintext
+  smtp_password: smtp_password 
+  
+  # @label: SMTP Encryption
+  # @description: Encryption method for SMTP connection
+  # @required: false
+  # @type: select
+  # @options: tls|TLS (recommended),ssl|SSL,none|None (insecure)
+  # @default: tls
+  smtp_encryption: tls
+
+# Emergency Admin Account (Break Glass)
+# WARNING: This account provides configuration-backed emergency access
+# Use ONLY for recovery purposes when locked out of normal accounts
+# To disable: Comment out or remove this entire section
+emergency_admin:
+  # @label: Enable Emergency Admin
+  # @description: Enable emergency break-glass admin account
+  # @required: true
+  # @type: boolean
+  # @default: false
+  # @help: Keep disabled unless an approved break-glass procedure provisions a hashed credential
+  enabled: false
+  
+  # @label: Emergency Username
+  # @description: Username for emergency admin login
+  # @required: false
+  # @type: string
+  username:
+  
+  # @label: Emergency Password
+  # @description: Password for emergency admin login
+  # @required: false
+  # @type: password
+  # @help: Argon2id hash only. Generate with: php -r "echo password_hash('yourpassword', PASSWORD_ARGON2ID);"
+  password:
+
+# NOTE: Encryption keys are stored in key.yaml (separate file, never committed to version control)
+# See key.yaml.example for the two-file encryption architecture
+
+# API / Monitoring
+api:
+  # @label: Monitoring API Key
+  # @description: Secret key required by the /api/api.php status endpoint
+  # @required: false
+  # @type: string
+  # @help: Set a long random string. Pass as X-Api-Key header in monitoring tools (e.g. UptimeRobot). If empty, only logged-in admins can access the status endpoint.
+  monitoring_key:
+
+# LTI Integration
+lti:
+  # @label: LTI Consumer Key
+  # @description: OAuth consumer key for LTI 1.1
+  # @required: false
+  # @type: string
+  # @help: Shared key configured in your LMS (Canvas, Blackboard, Moodle, etc.). Copy this value to your LMS when setting up the LTI tool.
+  consumer_key:
+  
+  # @label: LTI Consumer Secret
+  # @description: OAuth consumer secret for LTI 1.1
+  # @required: false
+  # @type: string
+  # @help: Shared secret configured in your LMS. Copy this value to your LMS when setting up the LTI tool. Store in plaintext for easy copy/paste.
+  consumer_secret:
+
+  # @label: LTI Launch URL
+  # @description: Full URL the LMS sends requests to (used for OAuth signature validation)
+  # @required: false
+  # @type: string
+  # @help: Leave blank to auto-detect from server variables. Required when using URL rewriting (e.g. IIS rewriting /SLO to /lti/launch.php). Must exactly match the URL configured in your LMS. Example: https://slo.example.edu/lti/launch.php or https://cloud.example.edu/SLO/
+  launch_url:
+
+  # @label: Validate OAuth Signatures
+  # @description: Enforce OAuth 1.0 signature validation for LTI 1.1
+  # @required: false
+  # @type: boolean
+  # @default: true
+  # @help: Set to false only for testing/development. Always use true in production!
+  validate_signatures: true
+
+  # @label: Allowed OAuth Signature Methods
+  # @description: Explicit allowlist for LTI 1.1 OAuth signature algorithms
+  # @required: true
+  # @type: string
+  # @default: HMAC-SHA256||HMAC-SHA1
+  # @help: HMAC-SHA256 is preferred. HMAC-SHA1 remains enabled for LTI 1.1 LMS compatibility; remove it after every configured LMS supports SHA-256.
+  allowed_signature_methods: HMAC-SHA256||HMAC-SHA1
+  
+  # @label: Nonce Expiration
+  # @description: How long to keep nonces for replay attack prevention (seconds)
+  # @required: false
+  # @type: integer
+  # @default: 3600
+  # @validation: min=300,max=86400
+  # @help: Default 3600 seconds (1 hour). Prevents replay attacks.
+  nonce_expiration: 3600
+
+  # @label: LTI Offering Field
+  # @description: LTI POST field that contains the CRN and term ID
+  # @required: false
+  # @type: string
+  # @default: lis_course_offering_sourcedid
+  # @help: The LTI field your LMS sends the course offering identifier in. Standard LTI 1.1 uses lis_course_offering_sourcedid.
+  offering_field: lis_course_offering_sourcedid
+
+  # @label: LTI Offering Format
+  # @description: Tokenized format for parsing CRN and term ID from the offering field
+  # @required: false
+  # @type: string
+  # @default: {CRN}.{TERM}
+  # @help: Use {CRN} and {TERM} as named tokens. The characters between them are the delimiter. Values must not contain delimiter characters. Banner: "{CRN}.{TERM}" (e.g. 45581.202533). Colleague reversed: "{TERM}-{CRN}".
+  offering_format: "{CRN}.{TERM}"
+
+  # @label: LTI Course Label Field
+  # @description: LTI POST field that contains the course label (used to extract course number)
+  # @required: false
+  # @type: string
+  # @default: context_label
+  # @help: The LTI field your LMS sends the human-readable course label in. Standard LTI 1.1 uses context_label.
+  course_label_field: context_label
+
+  # @label: LTI Course Label Format
+  # @description: Tokenized format for extracting course number from the course label field
+  # @required: false
+  # @type: string
+  # @default: {COURSE}-{REST}
+  # @help: Use {COURSE} to mark the course number token. {REST} captures and discards the remainder. Delimiter chars must not appear in the course number. Banner: "{COURSE}-{REST}" (e.g. COMM C110-45581 (Full Term)).
+  course_label_format: "{COURSE}-{REST}"
+
+# SAML 2.0 Single Sign-On
+# Enables federated login via an external Identity Provider (IdP) such as Azure AD,
+# Okta, Google Workspace, Shibboleth, or ADFS.
+# Users must already exist in the SLOCloud database to log in via SSO.
+# Unsigned AuthnRequests (SP -> IdP). The IdP MUST sign its Responses or Assertions.
+saml:
+  # @label: Enable SAML SSO
+  # @description: Enable Single Sign-On via SAML 2.0
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: When enabled, a "Login with SSO" button appears on the login page.
+  enabled: false
+
+  # @label: IdP Entity ID
+  # @description: Entity ID (Issuer) of your Identity Provider
+  # @required: false
+  # @type: string
+  # @help: Found in the IdP metadata XML as entityID. Example: https://sts.windows.net/tenant-id/ (Azure AD), https://your-org.okta.com (Okta)
+  idp_entity_id: ""
+
+  # @label: IdP SSO URL
+  # @description: IdP endpoint that receives SAML AuthnRequests (HTTP-Redirect binding)
+  # @required: false
+  # @type: string
+  # @help: Found in the IdP metadata as SingleSignOnService with Binding=HTTP-Redirect. Example: https://login.microsoftonline.com/{tenant}/saml2
+  idp_sso_url: ""
+
+  # @label: IdP SLO URL
+  # @description: IdP endpoint for Single Log-Out (optional)
+  # @required: false
+  # @type: string
+  # @help: Leave blank to skip SLO. Found in IdP metadata as SingleLogoutService.
+  idp_slo_url: ""
+
+  # @label: IdP Signing Certificate
+  # @description: Public X.509 certificate used by the IdP to sign SAML Responses/Assertions
+  # @required: false
+  # @type: textarea
+  # @help: Paste the base64-encoded certificate value only (no -----BEGIN/END CERTIFICATE----- headers). Found in IdP metadata inside <ds:X509Certificate>. Required when saml.enabled is true.
+  idp_cert: ""
+
+  # @label: IdP Display Name
+  # @description: Name shown on the SSO login button
+  # @required: false
+  # @type: string
+  # @default: Single Sign-On
+  # @help: Shown as "Login with {idp_name}" on the login page. Example: "Azure AD", "Okta", "Campus SSO"
+  idp_name: "Single Sign-On"
+
+  # @label: SP Entity ID
+  # @description: Unique identifier for this SLOCloud installation as a Service Provider
+  # @required: false
+  # @type: string
+  # @help: Usually the full URL to your SLOCloud metadata endpoint. Must match what you register with the IdP. Example: https://slo.example.edu/saml/metadata
+  sp_entity_id: ""
+
+  # @label: SP Assertion Consumer Service URL
+  # @description: SLOCloud endpoint that receives the IdP POST response
+  # @required: false
+  # @type: string
+  # @help: Must match the ACS URL registered with your IdP. Example: https://slo.example.edu/saml/acs.php
+  sp_acs_url: ""
+
+  # @label: Email Attribute Name
+  # @description: SAML attribute name that contains the user's email address
+  # @required: false
+  # @type: string
+  # @default: email
+  # @help: The SAML attribute your IdP sends for email. Common values:
+  #   email (Okta default)
+  #   http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress (Azure AD / ADFS)
+  #   urn:oid:0.9.2342.19200300.100.1.3 (eduPerson/Shibboleth)
+  #   Leave blank to use the NameID value as the email.
+  attr_email: "email"
+
+  # @label: Full Name Attribute Name
+  # @description: SAML attribute name that contains the user's display name
+  # @required: false
+  # @type: string
+  # @default: displayName
+  # @help: The SAML attribute your IdP sends for the user's full name. Common values:
+  #   displayName (Okta, Azure AD)
+  #   http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name (ADFS)
+  #   urn:oid:2.5.4.3 (eduPerson/Shibboleth)
+  #   Leave blank to skip name extraction.
+  attr_name: "displayName"

@@ -1,0 +1,3 @@
+# SLOCloud Root Marker
+# This file marks the root of the SLOCloud installation.
+# Used by the application to determine proper base paths and URLs.

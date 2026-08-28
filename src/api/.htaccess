@@ -1,0 +1,14 @@
+# Status Monitoring API
+# Authentication is enforced in api.php (X-Api-Key header or admin session)
+
+# Security headers
+<IfModule mod_headers.c>
+    # Prevent caching of status responses
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+    
+    # Security headers
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+</IfModule>

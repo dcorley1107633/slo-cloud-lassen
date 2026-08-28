@@ -1,0 +1,27 @@
+{
+    "id": 0,
+    "name": "Assessment participation by course",
+    "description": "Compare enrolled students, students with recorded assessments, and total assessment activity by course.",
+    "base_table": "terms",
+    "joins": [
+        "sections.term_fk->terms.terms_pk",
+        "sections.course_fk->courses.courses_pk",
+        "courses.discipline_fk->disciplines.disciplines_pk",
+        "enrollment.section_fk->sections.sections_pk",
+        "assessments.enrollment_fk->enrollment.enrollment_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "disciplines", "field": "discipline_code", "label": "Discipline", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "courses", "field": "course_number", "label": "Course", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "enrollment", "field": "enrollment_pk", "label": "Course enrollments", "aggregate": "count_distinct", "sort": "", "break": false, "summarize": true },
+        { "table": "assessments", "field": "enrollment_fk", "label": "Students assessed", "aggregate": "count_distinct", "sort": "", "break": false, "summarize": true },
+        { "table": "assessments", "field": "assessments_pk", "label": "Assessment records", "aggregate": "count", "sort": "", "break": false, "summarize": true }
+    ],
+    "filters": [
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "disciplines", "field": "discipline_code", "operator": "in", "control": "multi_select", "label": "Disciplines", "required": false, "default": [], "default_to": "" },
+        { "table": "courses", "field": "course_number", "operator": "in", "control": "multi_select", "label": "Courses", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 1000, "grand_total": true }
+}

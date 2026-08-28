@@ -1,0 +1,30 @@
+# Metis Theme Plugin
+# Modern dashboard theme with material design
+
+id: theme-metis
+name: Metis Dashboard Theme
+version: 1.0.0
+type: theme
+description: Modern material design dashboard theme with sidebar navigation
+author: SLOCloud Project
+
+# Theme-specific configuration
+theme:
+  default_layout: default
+  layouts:
+    default:
+      name: Default Layout
+      description: Clean layout without sidebar (used as fallback for other layouts)
+      header: layouts/default/header.php
+      footer: layouts/default/footer.php
+    dashboard:
+      name: Dashboard Layout
+      description: Full sidebar with material design elements
+      header: layouts/dashboard/header.php
+      footer: layouts/dashboard/footer.php
+    compact:
+      name: Compact Layout
+      description: Collapsed sidebar for more content space
+      header: layouts/compact/header.php
+      footer: layouts/dashboard/footer.php
+

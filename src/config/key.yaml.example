@@ -1,0 +1,74 @@
+# Master Encryption Keys
+#
+# CRITICAL SECURITY - READ CAREFULLY:
+# ========================================
+# This file contains master keys that decrypt sensitive data in config.yaml
+#
+# ARCHITECTURE:
+# - key.yaml = Master keys (THIS FILE - keep secret)
+# - config.yaml = Encrypted credentials (can be in version control)
+# - Session = Decrypted config cache (performance)
+#
+# SECURITY PROTECTIONS:
+# 1. .htaccess blocks web access to all .yaml files
+#
+# 2. Set strict file permissions: chmod 600 key.yaml (Linux/Unix)
+#
+# 3. NEVER commit key.yaml to version control (.gitignore protects this)
+#
+# 4. All keys in this file MUST be different from each other
+#
+# 5. Encrypted values in config.yaml use encryption_key to decrypt:
+#    - database.password
+#    - email.smtp_password
+#    - lti.consumer_secret
+#    - security.student_encryption_key
+#
+# GENERATE KEYS:
+#   php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
+#   (run twice to get two different keys)
+#
+# TO ENCRYPT A VALUE FOR CONFIG.YAML:
+#   php -r "require 'system/Core/Encryption.php'; 
+#           \$enc = new SLOCloud\\Core\\Encryption('PUT_YOUR_ENCRYPTION_KEY_HERE'); 
+#           echo \$enc->encrypt('your-secret-value') . PHP_EOL;"
+
+# TO MOVE THIS FILE OUTSIDE THE WEBROOT:
+#   Do NOT edit code or config.yaml. Set the environment variable
+#   SLOCloud_KEY_PATH to this file's new absolute path. It is checked
+#   first, before the default config-dir locations.
+#   IIS: applicationHost.config -> FastCGI app -> <environmentVariables>
+#     <add name="SLOCloud_KEY_PATH" value="C:\secrets\slocloud\key.yaml" />
+#   Then ensure the app-pool identity is the only account with read access.
+
+# Master encryption key - decrypts sensitive fields in config.yaml
+# (64 hex characters = 32 bytes = 256 bits)
+encryption_key: 0000000000000000000000000000000000000000000000000000000000000000
+
+# Student data encryption key - for FERPA-protected student PII
+# MUST be different from encryption_key above!
+student_encryption_key: 0000000000000000000000000000000000000000000000000000000000000000
+
+# Student C-number lookup key - OPTIONAL, and NOT hand-editable.
+# MUST be different from both keys above!
+#
+# Makes student_id_hash a keyed HMAC instead of a plain SHA-256. Keep this key
+# outside database backups and rotate it only with the supported tool.
+#
+# DO NOT set, change, or remove this value by hand. student_id_hash is searched
+# by recomputing it, so every stored digest must have been produced by exactly
+# the key in force. Editing this line without rewriting those rows makes every
+# existing student stop matching on import - they get silently re-inserted as
+# duplicates, with no error.
+#
+# To adopt or rotate this key safely, use Administration > System >
+# Configuration while Maintenance Mode is enabled. The command-line tool below
+# is also available. Both paths recompute every stored digest from the plaintext
+# (recoverable via student_encryption_key) and then update this line themselves:
+#
+#   php src/system/scripts/rotate_student_lookup_key.php --dry-run
+#   php src/system/scripts/rotate_student_lookup_key.php
+#
+# Omit the line entirely to keep the legacy unkeyed SHA-256 behaviour.
+# student_lookup_key: 0000000000000000000000000000000000000000000000000000000000000000
+

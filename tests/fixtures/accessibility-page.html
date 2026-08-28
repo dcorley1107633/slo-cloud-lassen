@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="slo-session-timeout" content="60">
+    <meta name="slo-session-warning" content="10">
+    <meta name="slo-session-extend-url" content="/tests/fixtures/extend.php">
+    <meta name="slo-session-logout-url" content="/logout.php">
+    <meta name="slo-csrf-token" content="fixture-token">
+    <title>Accessibility behavior fixture</title>
+    <link rel="stylesheet" href="/src/assets/vendor/bootstrap/5.3.8/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/src/system/accessibility.css">
+    <script src="/src/system/accessibility.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div class="metis-wrapper d-flex">
+    <nav class="metis-sidebar p-3" aria-label="Fixture navigation"><a href="#form">Example form</a></nav>
+    <main class="metis-main container p-3" id="main" tabindex="-1">
+        <h1>Accessibility behavior fixture</h1>
+        <form id="form">
+            <div class="mb-3">
+                <label for="fixture-email" class="form-label">Email address</label>
+                <input id="fixture-email" name="email" class="form-control" type="email" required autocomplete="email">
+            </div>
+            <button class="btn btn-primary" type="submit">Submit</button>
+        </form>
+        <section class="card mt-3" aria-labelledby="records-title">
+            <div class="card-header"><h2 class="card-title" id="records-title">Records</h2></div>
+            <div class="table-responsive"><table class="table"><thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Example</td><td>Ready</td></tr></tbody></table></div>
+        </section>
+        <div class="dataTables_info mt-3">Showing one record</div>
+        <button class="btn btn-secondary mt-3" type="button" data-bs-toggle="modal" data-bs-target="#fixture-modal">Open dialog</button>
+        <div class="modal fade" id="fixture-modal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">Example dialog</h2></div><div class="modal-body"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div>
+        </div>
+    </main>
+</div>
+<script src="/src/assets/vendor/bootstrap/5.3.8/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

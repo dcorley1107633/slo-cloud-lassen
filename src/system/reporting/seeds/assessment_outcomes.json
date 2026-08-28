@@ -1,0 +1,76 @@
+{
+    "id": 0,
+    "name": "Assessment outcomes by course",
+    "description": "Compare assessment counts by course and achievement level across one or more terms.",
+    "base_table": "terms",
+    "joins": [
+        "sections.term_fk->terms.terms_pk",
+        "sections.course_fk->courses.courses_pk",
+        "enrollment.section_fk->sections.sections_pk",
+        "assessments.enrollment_fk->enrollment.enrollment_pk"
+    ],
+    "columns": [
+        {
+            "table": "terms",
+            "field": "term_code",
+            "label": "Term",
+            "aggregate": "",
+            "sort": "asc",
+            "break": true,
+            "summarize": false
+        },
+        {
+            "table": "courses",
+            "field": "course_number",
+            "label": "Course",
+            "aggregate": "",
+            "sort": "asc",
+            "break": true,
+            "summarize": false
+        },
+        {
+            "table": "assessments",
+            "field": "achievement_level",
+            "label": "Achievement level",
+            "aggregate": "",
+            "sort": "asc",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "assessments",
+            "field": "assessments_pk",
+            "label": "Assessments",
+            "aggregate": "count",
+            "sort": "",
+            "break": false,
+            "summarize": true
+        }
+    ],
+    "filters": [
+        {
+            "table": "terms",
+            "field": "term_code",
+            "operator": "in",
+            "control": "multi_select",
+            "label": "Terms",
+            "required": false,
+            "default": [],
+            "default_to": ""
+        },
+        {
+            "table": "assessments",
+            "field": "achievement_level",
+            "operator": "in",
+            "control": "multi_select",
+            "label": "Achievement level",
+            "required": false,
+            "default": [],
+            "default_to": ""
+        }
+    ],
+    "options": {
+        "row_limit": 500,
+        "grand_total": true
+    }
+}

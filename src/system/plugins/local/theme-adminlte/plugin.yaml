@@ -1,0 +1,29 @@
+# AdminLTE 4 Theme Plugin
+# Professional admin theme with sidebar navigation
+
+id: theme-adminlte
+name: AdminLTE 4 Theme
+version: 1.0.0
+type: theme
+description: Professional responsive admin theme with sidebar navigation and multiple layouts
+author: SLOCloud Project
+
+# Theme-specific configuration
+theme:
+  default_layout: default
+  layouts:
+    default:
+      name: Default Layout
+      description: Basic layout with top navbar only (used as fallback for other layouts)
+      header: layouts/default/header.php
+      footer: layouts/default/footer.php
+    admin:
+      name: Admin Dashboard
+      description: Full sidebar navigation for administration pages
+      header: layouts/admin/header.php
+      footer: layouts/admin/footer.php
+    embedded:
+      name: Embedded Layout
+      description: Minimal layout for LTI/iframe embedding
+      header: layouts/embedded/header.php
+      footer: layouts/embedded/footer.php

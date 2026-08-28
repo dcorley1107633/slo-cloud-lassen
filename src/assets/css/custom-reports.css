@@ -1,0 +1,141 @@
+.slo-report-manager .card,
+.slo-report-builder .card,
+.slo-report-viewer .card {
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+}
+
+.slo-report-manager .card-header,
+.slo-report-builder .card-header,
+.slo-report-viewer .card-header {
+    background: transparent;
+    font-weight: 600;
+}
+
+.slo-report-manager .table > :not(caption) > * > *,
+.slo-report-builder .table > :not(caption) > * > *,
+.slo-report-viewer .table > :not(caption) > * > * {
+    vertical-align: middle;
+}
+
+.report-editor-picker {
+    min-width: 16.25rem;
+}
+
+.report-joins {
+    max-height: 10rem;
+    overflow-y: auto;
+}
+
+.slo-report-builder .form-control-sm,
+.slo-report-builder .form-select-sm,
+.slo-report-builder .btn-sm {
+    padding: .25rem .5rem;
+    font-size: .875rem;
+}
+
+.slo-report-builder .form-control-sm,
+.slo-report-builder .form-select-sm {
+    min-height: calc(1.5em + .5rem + 2px);
+}
+
+.report-drag-buttons .btn {
+    line-height: 1;
+}
+
+.report-viewer-scroll {
+    max-height: min(70vh, 48rem);
+    overflow: auto;
+}
+
+.report-viewer-scroll .report-results > thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bs-body-bg, #fff);
+    box-shadow: inset 0 -1px 0 var(--bs-border-color, #dee2e6);
+}
+
+.report-results {
+    width: 100%;
+}
+
+.report-results td {
+    max-width: 24rem;
+    overflow-wrap: anywhere;
+}
+
+.report-row-subtotal > td {
+    background: var(--bs-secondary-bg, #e9ecef) !important;
+    border-top-width: 2px;
+    font-weight: 600;
+}
+
+.report-row-total > td {
+    background: var(--bs-dark, #212529) !important;
+    border-color: var(--bs-dark, #212529);
+    color: var(--bs-white, #fff) !important;
+    font-weight: 700;
+}
+
+.report-multiselect {
+    width: 100%;
+}
+
+.report-multiselect-toggle {
+    overflow: hidden;
+    padding-right: 2.25rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.report-multiselect-toggle.dropdown-toggle::after {
+    display: none;
+}
+
+.report-multiselect-menu {
+    min-width: 17.5rem;
+    width: 100%;
+}
+
+.report-multiselect-options {
+    max-height: 15rem;
+    overflow-y: auto;
+}
+
+.report-multiselect .dropdown-item {
+    cursor: pointer;
+    white-space: normal;
+}
+
+.report-multiselect .dropdown-item:hover,
+.report-multiselect .dropdown-item:focus-within {
+    background: var(--bs-tertiary-bg, #f8f9fa);
+}
+
+.report-sql pre {
+    max-height: 24rem;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
+@media (max-width: 767.98px) {
+    .report-editor-picker {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .report-editor-add {
+        width: 100%;
+    }
+}
+
+@media print {
+    .report-results thead th {
+        position: static;
+    }
+
+    .report-screen-only {
+        display: none !important;
+    }
+}

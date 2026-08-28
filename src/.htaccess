@@ -1,0 +1,97 @@
+# SLOCloud Apache Configuration
+# Requires mod_rewrite, mod_headers
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # RewriteBase is intentionally omitted to auto-detect subdirectory installations
+    # Apache will use the directory containing this .htaccess as the base
+    
+    # If the file or directory exists, serve it directly
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Route all other requests through index.php
+    RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent MIME type sniffing
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # Referrer policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    
+    # Remove server signature
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
+
+# Disable directory browsing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^(config\.yaml|\.env|\.git.*|composer\.(json|lock))$">
+    Require all denied
+</FilesMatch>
+
+# Block direct HTTP access to runtime and sensitive directories (anywhere in the tree)
+<IfModule mod_rewrite.c>
+    RewriteRule ^(.*/)?config(/|$) - [R=404,L]
+    RewriteRule ^(.*/)?sessions(/|$) - [R=404,L]
+    RewriteRule ^(.*/)?logs(/|$) - [F,L]
+    RewriteRule ^(.*/)?backups(/|$) - [F,L]
+    RewriteRule ^(.*/)?archive(/|$) - [F,L]
+    RewriteRule ^(.*/)?archives(/|$) - [F,L]
+    RewriteRule ^(.*/)?var(/|$) - [R=404,L]
+</IfModule>
+<IfModule !mod_rewrite.c>
+    # Fallback when mod_rewrite is unavailable
+    <DirectoryMatch "(^|/)logs($|/)">
+        Require all denied
+        <IfModule !mod_authz_core.c>
+            Order deny,allow
+            Deny from all
+        </IfModule>
+    </DirectoryMatch>
+    <DirectoryMatch "(^|/)backups($|/)">
+        Require all denied
+        <IfModule !mod_authz_core.c>
+            Order deny,allow
+            Deny from all
+        </IfModule>
+    </DirectoryMatch>
+    <DirectoryMatch "(^|/)archives?($|/)">
+        Require all denied
+        <IfModule !mod_authz_core.c>
+            Order deny,allow
+            Deny from all
+        </IfModule>
+    </DirectoryMatch>
+    <DirectoryMatch "(^|/)(config|sessions|var)($|/)">
+        Require all denied
+        <IfModule !mod_authz_core.c>
+            Order deny,allow
+            Deny from all
+        </IfModule>
+    </DirectoryMatch>
+</IfModule>
+
+# PHP Security Settings
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+</IfModule>
+
+# Character encoding
+AddDefaultCharset UTF-8
+
+# File upload limits (adjust as needed)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>

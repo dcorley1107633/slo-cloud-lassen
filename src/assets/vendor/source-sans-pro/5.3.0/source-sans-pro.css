@@ -1,0 +1,5 @@
+/* Source Sans Pro latin subset, vendored from @fontsource/source-sans-pro 5.3.0. */
+@font-face { font-family: 'Source Sans Pro'; font-style: normal; font-display: swap; font-weight: 300; src: url('./files/source-sans-pro-latin-300-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans Pro'; font-style: normal; font-display: swap; font-weight: 400; src: url('./files/source-sans-pro-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans Pro'; font-style: italic; font-display: swap; font-weight: 400; src: url('./files/source-sans-pro-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Source Sans Pro'; font-style: normal; font-display: swap; font-weight: 700; src: url('./files/source-sans-pro-latin-700-normal.woff2') format('woff2'); }

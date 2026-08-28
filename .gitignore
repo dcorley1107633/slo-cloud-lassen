@@ -1,0 +1,61 @@
+# SLOCloud .gitignore
+# Root-level safety net for sensitive files
+
+# ============================================================
+# CRITICAL: Configuration and encryption keys
+# (also protected by src/config/.gitignore)
+# ============================================================
+src/config/config.yaml
+src/config/key.yaml
+src/config/*.key
+src/config/.env
+src/config/.env.*
+
+# ============================================================
+# Runtime / generated files
+# ============================================================
+
+# PHP session files
+src/sessions/*.sess
+src/sessions/sess_*
+var/sessions/
+
+# Brute-force throttle counters (login and LTI launch)
+var/loginlimits/
+var/ltilimits/
+
+# Log files (kept by logs/.gitignore, reinforced here)
+logs/*.log
+src/**/*.log
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.tmp
+*~
+
+# IDE project files
+.idea/
+.vscode/settings.json
+*.code-workspace
+
+# ============================================================
+# Development / build artifacts
+# ============================================================
+node_modules/
+vendor/
+# Browser dependencies are intentionally vendored for CDN-free production use.
+!src/assets/vendor/
+!src/assets/vendor/**
+composer.lock
+
+# Saved dynamic report definitions are deployment data (seed definitions live in source).
+var/reports/definitions/
+
+# The report catalog is per-install state, introspected from the live database
+# at setup and on refresh. Never shipped - a checked-in catalog would be
+# single-dialect and would be overwritten by drop-in upgrades.
+var/reports/catalog.json

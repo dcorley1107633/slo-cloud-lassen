@@ -1,0 +1,23 @@
+{
+    "id": 0,
+    "name": "Program outcome inventory",
+    "description": "Review program outcomes by program and compare them across selected terms.",
+    "base_table": "terms",
+    "joins": [
+        "programs.term_fk->terms.terms_pk",
+        "program_outcomes.program_fk->programs.programs_pk",
+        "programs.discipline_fk->disciplines.disciplines_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "programs", "field": "program_code", "label": "Program", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "program_outcomes", "field": "outcome_code", "label": "Outcome", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "program_outcomes", "field": "outcome_description", "label": "Description", "aggregate": "", "sort": "", "break": false, "summarize": false }
+    ],
+    "filters": [
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "disciplines", "field": "discipline_code", "operator": "in", "control": "multi_select", "label": "Disciplines", "required": false, "default": [], "default_to": "" },
+        { "table": "programs", "field": "program_code", "operator": "in", "control": "multi_select", "label": "Programs", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 2000, "grand_total": false }
+}

@@ -1,0 +1,23 @@
+{
+    "id": 0,
+    "name": "CSLO assessment coverage",
+    "description": "Compare how many assessments are recorded for each course learning outcome across selected terms.",
+    "base_table": "terms",
+    "joins": [
+        "courses.term_fk->terms.terms_pk",
+        "student_learning_outcomes.course_fk->courses.courses_pk",
+        "assessments.student_learning_outcome_fk->student_learning_outcomes.student_learning_outcomes_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "courses", "field": "course_number", "label": "Course", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "student_learning_outcomes", "field": "slo_code", "label": "CSLO", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "assessments", "field": "assessments_pk", "label": "Assessments", "aggregate": "count", "sort": "", "break": false, "summarize": true }
+    ],
+    "filters": [
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "courses", "field": "course_number", "operator": "in", "control": "multi_select", "label": "Courses", "required": false, "default": [], "default_to": "" },
+        { "table": "assessments", "field": "achievement_level", "operator": "in", "control": "multi_select", "label": "Achievement levels", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 1000, "grand_total": true }
+}

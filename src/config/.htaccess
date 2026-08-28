@@ -1,0 +1,24 @@
+# SLOCloud Config Security
+# This folder holds config.yaml and key.yaml (master encryption keys).
+# It must NEVER be served over HTTP. Deny the ENTIRE folder, not just
+# YAML files by extension (covers backups, swap files, listings, etc.).
+
+# Apache 2.4+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+
+# Apache 2.2 and earlier
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
+
+# Belt-and-suspenders: explicit extension denies in case a future
+# server config re-enables directory access above.
+<Files "*.yaml">
+    Require all denied
+</Files>
+<Files "*.yml">
+    Require all denied
+</Files>

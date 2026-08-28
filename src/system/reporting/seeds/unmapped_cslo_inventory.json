@@ -1,0 +1,26 @@
+{
+    "id": 0,
+    "name": "Unmapped CSLO inventory",
+    "description": "Find course learning outcomes that are not mapped to a program outcome so curriculum gaps can be reviewed.",
+    "base_table": "terms",
+    "joins": [
+        "courses.term_fk->terms.terms_pk",
+        "courses.discipline_fk->disciplines.disciplines_pk",
+        "student_learning_outcomes.course_fk->courses.courses_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "disciplines", "field": "discipline_code", "label": "Discipline", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "courses", "field": "course_number", "label": "Course", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "courses", "field": "course_name", "label": "Course name", "aggregate": "", "sort": "", "break": false, "summarize": false },
+        { "table": "student_learning_outcomes", "field": "slo_code", "label": "CSLO", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "student_learning_outcomes", "field": "slo_description", "label": "CSLO description", "aggregate": "", "sort": "", "break": false, "summarize": false }
+    ],
+    "filters": [
+        { "table": "student_learning_outcomes", "field": "program_outcomes_fk", "operator": "is_null", "control": "textbox", "label": "Unmapped CSLOs", "required": false, "default": "", "default_to": "" },
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "disciplines", "field": "discipline_code", "operator": "in", "control": "multi_select", "label": "Disciplines", "required": false, "default": [], "default_to": "" },
+        { "table": "courses", "field": "course_number", "operator": "in", "control": "multi_select", "label": "Courses", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 2000, "grand_total": false }
+}

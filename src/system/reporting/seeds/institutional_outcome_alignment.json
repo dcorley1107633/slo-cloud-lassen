@@ -1,0 +1,24 @@
+{
+    "id": 0,
+    "name": "Institutional outcome alignment",
+    "description": "Review how program outcomes align to each institutional learning outcome across selected terms.",
+    "base_table": "terms",
+    "joins": [
+        "institutional_outcomes.term_fk->terms.terms_pk",
+        "program_outcomes.institutional_outcomes_fk->institutional_outcomes.institutional_outcomes_pk",
+        "program_outcomes.program_fk->programs.programs_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "institutional_outcomes", "field": "outcome_code", "label": "Institutional outcome", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "institutional_outcomes", "field": "outcome_description", "label": "Institutional outcome description", "aggregate": "", "sort": "", "break": false, "summarize": false },
+        { "table": "programs", "field": "program_code", "label": "Aligned programs", "aggregate": "count_distinct", "sort": "", "break": false, "summarize": true },
+        { "table": "program_outcomes", "field": "program_outcomes_pk", "label": "Aligned program outcomes", "aggregate": "count_distinct", "sort": "", "break": false, "summarize": true }
+    ],
+    "filters": [
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "institutional_outcomes", "field": "outcome_code", "operator": "in", "control": "multi_select", "label": "Institutional outcomes", "required": false, "default": [], "default_to": "" },
+        { "table": "programs", "field": "program_code", "operator": "in", "control": "multi_select", "label": "Programs", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 1000, "grand_total": true }
+}

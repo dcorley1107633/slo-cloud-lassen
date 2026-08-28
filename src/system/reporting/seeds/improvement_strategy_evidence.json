@@ -1,0 +1,27 @@
+{
+    "id": 0,
+    "name": "Improvement strategy evidence",
+    "description": "Review documented assessment methods and continuous-improvement strategies for course learning outcomes.",
+    "base_table": "terms",
+    "joins": [
+        "courses.term_fk->terms.terms_pk",
+        "student_learning_outcomes.course_fk->courses.courses_pk",
+        "section_slo_methods.student_learning_outcome_fk->student_learning_outcomes.student_learning_outcomes_pk"
+    ],
+    "columns": [
+        { "table": "terms", "field": "term_code", "label": "Term", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "courses", "field": "course_number", "label": "Course", "aggregate": "", "sort": "asc", "break": true, "summarize": false },
+        { "table": "student_learning_outcomes", "field": "slo_code", "label": "CSLO", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "section_slo_methods", "field": "crn", "label": "CRN", "aggregate": "", "sort": "asc", "break": false, "summarize": false },
+        { "table": "section_slo_methods", "field": "assessment_method", "label": "Assessment method", "aggregate": "", "sort": "", "break": false, "summarize": false },
+        { "table": "section_slo_methods", "field": "improvement_strategies", "label": "Improvement strategies", "aggregate": "", "sort": "", "break": false, "summarize": false },
+        { "table": "section_slo_methods", "field": "assessed_date", "label": "Assessed date", "aggregate": "", "sort": "desc", "break": false, "summarize": false }
+    ],
+    "filters": [
+        { "table": "section_slo_methods", "field": "improvement_strategies", "operator": "not_null", "control": "textbox", "label": "Documented strategies", "required": false, "default": "", "default_to": "" },
+        { "table": "terms", "field": "term_code", "operator": "in", "control": "multi_select", "label": "Terms", "required": false, "default": [], "default_to": "" },
+        { "table": "courses", "field": "course_number", "operator": "in", "control": "multi_select", "label": "Courses", "required": false, "default": [], "default_to": "" },
+        { "table": "section_slo_methods", "field": "assessment_method", "operator": "in", "control": "multi_select", "label": "Assessment methods", "required": false, "default": [], "default_to": "" }
+    ],
+    "options": { "row_limit": 2000, "grand_total": false }
+}

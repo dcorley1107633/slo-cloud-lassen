@@ -1,0 +1,36 @@
+term_code,pslo_code,pslo_language,program_code,pslo_sequence_num,islo_code
+202630,AS_ACCT_PSLO1,Apply generally accepted accounting principles to prepare and analyze financial statements.,AS_ACCT,1,ISLO1
+202630,AS_ACCT_PSLO2,Communicate financial information clearly in written and oral formats to diverse stakeholders.,AS_ACCT,2,ISLO2
+202630,AS_ACCT_PSLO3,Apply ethical standards and professional responsibility in accounting practice.,AS_ACCT,3,ISLO3
+202630,CN_ACCT_PSLO1,Apply generally accepted accounting principles to prepare and analyze financial statements.,CN_ACCT,1,ISLO1
+202630,CN_ACCT_PSLO2,Utilize accounting software to record and report business transactions.,CN_ACCT,2,ISLO1
+202630,AS_CIS_PSLO1,Design and implement solutions to computational problems using appropriate programming techniques.,AS_CIS,1,ISLO1
+202630,AS_CIS_PSLO2,Analyze and evaluate software systems with respect to quality attributes such as security and maintainability.,AS_CIS,2,ISLO1
+202630,AS_CIS_PSLO3,Communicate technical information effectively in written and oral form.,AS_CIS,3,ISLO2
+202630,CN_CIS_PSLO1,Design and implement solutions to computational problems using appropriate programming techniques.,CN_CIS,1,ISLO1
+202630,CN_CIS_PSLO2,Apply foundational concepts of networking and system administration.,CN_CIS,2,ISLO1
+202630,AS_CYBR_PSLO1,Analyze vulnerabilities in networked systems and apply appropriate security controls.,AS_CYBR,1,ISLO1
+202630,AS_CYBR_PSLO2,Apply ethical and legal standards in cybersecurity practice.,AS_CYBR,2,ISLO3
+202630,AS_CYBR_PSLO3,Communicate cybersecurity risks and recommendations to technical and non-technical audiences.,AS_CYBR,3,ISLO2
+202630,AA_ENGL_PSLO1,"Write well-organized, well-developed expository essays using Standard English with a clear thesis and supporting evidence.",AA_ENGL,1,ISLO2
+202630,AA_ENGL_PSLO2,Locate and evaluate reliable sources and integrate them into research writing using correct documentation.,AA_ENGL,2,ISLO1
+202630,AA_ENGL_PSLO3,"Analyze literary works in terms of style, tone, and literary conventions.",AA_ENGL,3,ISLO1
+202630,AAT_ENGL_PSLO1,"Write well-organized, well-developed expository essays using Standard English with a clear thesis and supporting evidence.",AAT_ENGL,1,ISLO2
+202630,AAT_ENGL_PSLO2,Locate and evaluate reliable sources and integrate them into research writing using correct documentation.,AAT_ENGL,2,ISLO1
+202630,AST_BIOL_PSLO1,Apply the scientific method to design experiments and interpret biological data.,AST_BIOL,1,ISLO1
+202630,AST_BIOL_PSLO2,Explain fundamental concepts in cell biology and genetics.,AST_BIOL,2,ISLO1
+202630,AST_BIOL_PSLO3,Evaluate the impact of biological science on society and the environment.,AST_BIOL,3,ISLO4
+202630,AA_HIST_PSLO1,"Critically evaluate the social, cultural, political, and economic characteristics of past societies and explain how and why these characteristics change over time.",AA_HIST,1,ISLO1
+202630,AA_HIST_PSLO2,Analyze the meaning of primary and secondary historical sources and their significance as evidence.,AA_HIST,2,ISLO1
+202630,AA_HIST_PSLO3,Evaluate the impact of diversity upon the development of past societies.,AA_HIST,3,ISLO4
+202630,AAT_HIST_PSLO1,"Develop a well-structured argument supported with relevant evidence which evaluates social, cultural, political, and economic characteristics of past societies.",AAT_HIST,1,ISLO1
+202630,AAT_HIST_PSLO2,Analyze the meaning of primary and secondary historical sources and their significance as evidence.,AAT_HIST,2,ISLO1
+202630,AS_MATH_PSLO1,Select and apply correct quantitative methods to find solutions in familiar and unique contexts.,AS_MATH,1,ISLO1
+202630,AS_MATH_PSLO2,"Accurately interpret and create mathematical models such as formulas, graphs, and tables.",AS_MATH,2,ISLO1
+202630,AS_MATH_PSLO3,Explain mathematical thinking and justify solutions clearly and accurately.,AS_MATH,3,ISLO2
+202630,AA_PSYC_PSLO1,"Utilize investigative methods to collect, interpret, and present scientific data on psychological topics.",AA_PSYC,1,ISLO1
+202630,AA_PSYC_PSLO2,"Apply the major theories, principles, and concepts of psychology to everyday life.",AA_PSYC,2,ISLO1
+202630,AA_PSYC_PSLO3,Characterize the nature of psychology as a science.,AA_PSYC,3,ISLO1
+202630,AAT_SOC_PSLO1,Demonstrate critical thinking and the use of sociological theory in analyzing social reality.,AAT_SOC,1,ISLO1
+202630,AAT_SOC_PSLO2,Apply sociological perspectives to analyze the structure and dynamics of contemporary society.,AAT_SOC,2,ISLO1
+202630,AAT_SOC_PSLO3,Articulate the process of social change and diversity in a global context.,AAT_SOC,3,ISLO4
