@@ -27,6 +27,21 @@ final class ReportCatalogBuilder
         'enrollment.course_fk' => 'Legacy Course Key (cleanup only)',
     ];
 
+    /**
+     * Report fields derived from an encrypted JSON column. The ciphertext column
+     * itself stays excluded (its name matches the sensitive pattern); these
+     * entries are type `encrypted`, selected as the ciphertext in SQL, and
+     * decoded in PHP by ReportEngine after the query runs. They can be shown,
+     * exported, printed, and counted, never filtered, sorted, or grouped.
+     */
+    private const ENCRYPTED_FIELDS = [
+        'students' => ['source' => 'student_data_encrypted', 'fields' => [
+            'student_id' => ['label' => 'Student ID', 'key' => 'c_number'],
+            'first_name' => ['label' => 'First Name', 'key' => 'first_name'],
+            'last_name' => ['label' => 'Last Name', 'key' => 'last_name'],
+        ]],
+    ];
+
     private const CURATED_RELATIONSHIPS = [
         ['terms', 'created_by_fk', 'users', 'users_pk'], ['terms', 'updated_by_fk', 'users', 'users_pk'],
         ['institutional_outcomes', 'term_fk', 'terms', 'terms_pk'],
@@ -82,6 +97,8 @@ final class ReportCatalogBuilder
                 'text' => ['operators' => ['contains', 'not_contains', 'is_null', 'not_null'], 'aggregates' => ['count'], 'input' => 'text'],
                 'enum' => ['operators' => ['equals', 'not_equals', 'in'], 'aggregates' => ['count', 'count_distinct'], 'input' => 'select'],
                 'bool' => ['operators' => ['equals', 'in'], 'aggregates' => ['count', 'sum'], 'input' => 'select'],
+                // Decrypted after the query: display only, so no filter operators; counting the ciphertext is fine.
+                'encrypted' => ['operators' => [], 'aggregates' => ['count', 'count_distinct'], 'input' => 'text'],
             ],
             'operators' => [
                 'equals' => '=', 'not_equals' => 'Not equal to', 'gt' => 'Greater than', 'gte' => 'At least',
@@ -197,6 +214,17 @@ final class ReportCatalogBuilder
                     $entry['options'] = array_values($options);
                 }
                 $fields[(string)$fieldName] = $entry;
+            }
+            $encryptedSource = self::ENCRYPTED_FIELDS[$logical] ?? null;
+            if ($encryptedSource !== null && isset($rawTable['fields'][$encryptedSource['source']])) {
+                $derived = [];
+                foreach ($encryptedSource['fields'] as $fieldName => $meta) {
+                    $derived[$fieldName] = [
+                        'label' => $meta['label'], 'type' => 'encrypted', 'native_type' => 'encrypted', 'nullable' => false,
+                        'encrypted' => ['source' => $encryptedSource['source'], 'key' => $meta['key']],
+                    ];
+                }
+                $fields = $derived + $fields;
             }
             if ($fields === []) {
                 continue;
@@ -371,7 +399,10 @@ final class ReportCatalogBuilder
         $abbreviations = ['id', 'pk', 'fk', 'isbn', 'sku', 'ip', 'po', 'url', 'slo', 'cslo', 'pslo', 'islo', 'crn'];
         $parts = array_map(static function (string $part) use ($abbreviations): string {
             $part = strtolower($part);
-            if (in_array($part, ['id', 'pk', 'fk'], true)) return 'ID';
+            if ($part === 'id') return 'ID';
+            // Internal row keys read as "Key" so they are never mistaken for a
+            // business identifier such as the decrypted Student ID.
+            if ($part === 'pk' || $part === 'fk') return 'Key';
             if (in_array($part, $abbreviations, true)) return strtoupper($part);
             return ucfirst($part);
         }, explode('_', $name));

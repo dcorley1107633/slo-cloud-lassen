@@ -4,6 +4,7 @@ declare(strict_types=1);
 use SLOCloud\Reporting\ReportCatalogBuilder;
 use SLOCloud\Reporting\ReportDefinitionValidator;
 use SLOCloud\Reporting\ReportEngine;
+use SLOCloud\Reporting\ReportSettings;
 use SLOCloud\Reporting\ReportStore;
 
 require_once __DIR__ . '/../src/system/reporting/bootstrap.php';
@@ -19,8 +20,13 @@ $check($catalog['stats']['tables'] >= 10, 'MySQL DDL catalog should contain busi
 $check(!isset($catalog['tables']['users']), 'Authentication tables must be excluded.');
 $check(!isset($catalog['tables']['students']['fields']['student_id_hash']), 'Sensitive hashes must be excluded.');
 $check(!isset($catalog['tables']['students']['fields']['student_data_encrypted']), 'Encrypted student data must be excluded.');
-$check($catalog['tables']['assessments']['fields']['assessments_pk']['label'] === 'Assessments ID', 'Primary-key suffixes should render as ID.');
-$check($catalog['tables']['assessments']['fields']['enrollment_fk']['label'] === 'Enrollment ID', 'Foreign-key suffixes should render as ID.');
+$check($catalog['tables']['assessments']['fields']['assessments_pk']['label'] === 'Assessments Key', 'Primary-key suffixes should render as Key.');
+$check($catalog['tables']['assessments']['fields']['enrollment_fk']['label'] === 'Enrollment Key', 'Foreign-key suffixes should render as Key.');
+$check($catalog['tables']['sections']['fields']['section_id']['label'] === 'Section ID', 'Business identifiers keep the ID label.');
+$studentId = $catalog['tables']['students']['fields']['student_id'] ?? null;
+$check($studentId !== null && $studentId['type'] === 'encrypted' && $studentId['encrypted'] === ['source' => 'student_data_encrypted', 'key' => 'c_number'], 'Students should expose a decrypted Student ID derived from the encrypted blob.');
+$check(isset($catalog['tables']['students']['fields']['first_name'], $catalog['tables']['students']['fields']['last_name']), 'Students should expose decrypted name fields.');
+$check(($catalog['types']['encrypted']['operators'] ?? null) === [] && ($catalog['types']['encrypted']['aggregates'] ?? null) === ['count', 'count_distinct'], 'Encrypted fields should allow counting but no filter operators.');
 
 $overrideBuilder = new ReportCatalogBuilder(['payments.amount' => 'decimal']);
 $overrideCatalog = $overrideBuilder->assemble([
@@ -48,6 +54,11 @@ $check(isset($seedDefinitions['institutional_outcome_alignment.json']), 'Starter
 $check(isset($seedDefinitions['unmapped_cslo_inventory.json']), 'Starter reports should include an unmapped CSLO inventory.');
 $check(isset($seedDefinitions['assessment_participation_by_course.json']), 'Starter reports should include assessment participation by course.');
 $check(isset($seedDefinitions['improvement_strategy_evidence.json']), 'Starter reports should include improvement strategy evidence.');
+$check(isset($seedDefinitions['cslo_report.json']), 'Starter reports should include the CSLO report.');
+$csloSeed = $seedDefinitions['cslo_report.json'] ?? [];
+$check(($csloSeed['options']['row_limit'] ?? 0) === 20000 && ($csloSeed['options']['admin_only'] ?? null) === true, 'The CSLO report should request 20,000 rows and stay administrators-only.');
+$check(in_array('students.student_id', array_map(static fn(array $c): string => $c['table'] . '.' . $c['field'], $csloSeed['columns'] ?? []), true), 'The CSLO report should display the decrypted Student ID.');
+$check(($csloSeed['filters'][0]['field'] ?? '') === 'term_name' && ($csloSeed['filters'][0]['control'] ?? '') === 'multi_select', 'The CSLO report should filter by term name.');
 $seed = $seedDefinitions['assessment_outcomes.json'];
 $prepared = $validator->prepare($seed);
 
@@ -57,10 +68,18 @@ $attackResult = $validator->prepare($attack);
 $check($attackResult['errors'] !== [], 'Unknown/injected identifiers must fail validation.');
 
 $definition = $prepared['definition'];
-$definition['filters'][0]['required'] = true;
+$check(array_column($definition['columns'], 'break') === [true, true, false, false] && array_column($definition['columns'], 'summarize') === [false, false, false, true], 'The starter report should keep its two control breaks and one summarized count.');
+$check(array_column($definition['filters'], 'control') === ['multi_select', 'multi_select'], 'The starter report should prompt with two multi-select filters.');
+// The starter's filters are multi-selects; range semantics are exercised on an explicit required date range.
+$rangeDefinition = $definition;
+$rangeDefinition['filters'] = [[
+    'table' => 'assessments', 'field' => 'assessed_date', 'operator' => 'between', 'control' => 'textbox',
+    'label' => 'Assessed', 'required' => true, 'default' => '', 'default_to' => '',
+]];
 $engine = new ReportEngine(null, 'mysql', 'slocloud_tbl_', $catalog);
-$query = $engine->buildQuery($definition, ['f0' => '2026-01-01', 'f0b' => '2026-07-18']);
+$query = $engine->buildQuery($rangeDefinition, ['f0' => '2026-01-01', 'f0b' => '2026-07-18']);
 $check($query['errors'] === [], 'A complete required range should build.');
+$check($engine->buildQuery($rangeDefinition, ['f0' => '2026-01-01', 'f0b' => ''])['errors'] !== [], 'A required range with one bound must not build.');
 $check(str_contains($query['sql'], ' BETWEEN ? AND ?'), 'Runtime range values must use placeholders.');
 $check(!str_contains($query['sql'], '2026-01-01'), 'Runtime values must never appear in SQL.');
 $check($query['params'] === ['2026-01-01', '2026-07-18'], 'Range values should remain bound parameters.');
@@ -108,12 +127,93 @@ $mssqlQuery = (new ReportEngine(null, 'mssql', 'slocloud_tbl_', $catalog))->buil
 $check(str_starts_with($mssqlQuery['sql'], 'SELECT TOP (500)'), 'SQL Server should use TOP for the hard row bound.');
 $check(!str_contains($mssqlQuery['sql'], ' LIMIT '), 'SQL Server query must not use LIMIT.');
 
+// Tunable limits from the `reports` config section.
+$tunedSettings = ['max_row_limit' => 250, 'default_row_limit' => 400, 'option_search_limit' => 7, 'in_filter_max_values' => 2, 'option_search_debounce_ms' => -5];
+$normalizedSettings = ReportSettings::normalize($tunedSettings);
+$check($normalizedSettings['default_row_limit'] === 250, 'The default row limit must never exceed the configured maximum.');
+$check($normalizedSettings['option_search_debounce_ms'] === 0, 'Negative debounce values should floor at zero.');
+$check(ReportSettings::normalize([]) === ReportSettings::DEFAULTS, 'Missing settings should fall back to the documented defaults.');
+$check(ReportSettings::normalize(['max_row_limit' => 'abc', 'default_row_limit' => '12', 'unknown' => 1]) === ['max_row_limit' => 20000, 'default_row_limit' => 12] + ReportSettings::DEFAULTS, 'Non-numeric settings fall back per key, numeric strings are accepted, unknown keys are dropped.');
+
+$tunedValidator = new ReportDefinitionValidator($catalog, $tunedSettings);
+$check($tunedValidator->blank()['options']['row_limit'] === 250, 'Blank reports should start at the configured default row limit.');
+$oversized = $seed;
+$oversized['options']['row_limit'] = 99999;
+$check($tunedValidator->prepare($oversized)['definition']['options']['row_limit'] === 250, 'Saved row limits above the configured maximum should clamp to it.');
+$check($validator->prepare($oversized)['definition']['options']['row_limit'] === 20000, 'Without configuration the maximum row limit stays at 20,000.');
+$unlimited = $seed;
+unset($unlimited['options']['row_limit']);
+$check($tunedValidator->prepare($unlimited)['definition']['options']['row_limit'] === 250, 'Definitions without a row limit should use the configured default.');
+$check($validator->prepare($unlimited)['definition']['options']['row_limit'] === 500, 'Without configuration the default row limit stays at 500.');
+
+$limitDefinition = $definition;
+$limitDefinition['filters'] = [];
+$limitDefinition['options']['row_limit'] = 99999;
+$tunedEngine = new ReportEngine(null, 'mysql', 'slocloud_tbl_', $catalog, $tunedSettings);
+$check(str_ends_with($tunedEngine->buildQuery($limitDefinition, [])['sql'], 'LIMIT 250'), 'The MySQL row bound should follow the configured maximum.');
+$check(str_starts_with((new ReportEngine(null, 'mssql', 'slocloud_tbl_', $catalog, $tunedSettings))->buildQuery($limitDefinition, [])['sql'], 'SELECT TOP (250)'), 'The SQL Server row bound should follow the configured maximum.');
+$check(str_ends_with($engine->buildQuery($limitDefinition, [])['sql'], 'LIMIT 20000'), 'Without configuration the SQL row bound stays at 20,000.');
+
+$inDefinition = $definition;
+$inDefinition['filters'] = [[
+    'table' => 'courses', 'field' => 'course_name', 'operator' => 'in', 'control' => 'textbox',
+    'label' => '', 'required' => false, 'default' => '', 'default_to' => '',
+]];
+$check($tunedEngine->buildQuery($inDefinition, ['f0' => 'a,b,c,d'])['params'] === ['a', 'b'], 'IN filters should keep only the configured number of values.');
+$check($engine->buildQuery($inDefinition, ['f0' => 'a,b,c,d'])['params'] === ['a', 'b', 'c', 'd'], 'Without configuration IN filters keep every value up to 100.');
+$inDefaults = $seed;
+$inDefaults['filters'][0]['default'] = ['x', 'y', 'z'];
+$check(count($tunedValidator->prepare($inDefaults)['definition']['filters'][0]['default']) === 2, 'Saved multi-select defaults should be capped at the configured IN value count.');
+
+// Decrypted student fields and the administrators-only option.
+$encryptedDefinition = $definition;
+$encryptedDefinition['joins'] = ['sections.term_fk->terms.terms_pk', 'enrollment.section_fk->sections.sections_pk', 'enrollment.student_fk->students.students_pk'];
+$encryptedDefinition['columns'] = [
+    ['table' => 'students', 'field' => 'student_id', 'label' => '', 'aggregate' => '', 'sort' => 'asc', 'break' => true, 'summarize' => false],
+    ['table' => 'students', 'field' => 'student_id', 'label' => 'Students', 'aggregate' => 'count_distinct', 'sort' => '', 'break' => false, 'summarize' => false],
+];
+$encryptedDefinition['filters'] = [];
+$encryptedPrepared = $validator->prepare($encryptedDefinition);
+$check(count($encryptedPrepared['errors']) === 1 && str_contains($encryptedPrepared['errors'][0], 'decrypted after the query runs'), 'Sorting or breaking on a decrypted field must be rejected: ' . implode('; ', $encryptedPrepared['errors']));
+$check($encryptedPrepared['definition']['columns'][0]['sort'] === '' && $encryptedPrepared['definition']['columns'][0]['break'] === false, 'Rejected sort and break on a decrypted field should be cleared.');
+$encryptedFilter = $encryptedDefinition;
+$encryptedFilter['columns'][0]['sort'] = '';
+$encryptedFilter['columns'][0]['break'] = false;
+$encryptedFilter['filters'] = [['table' => 'students', 'field' => 'student_id', 'operator' => 'equals', 'control' => 'textbox', 'label' => '', 'required' => false, 'default' => '', 'default_to' => '']];
+$check(str_contains(implode(' ', $validator->prepare($encryptedFilter)['errors']), 'cannot filter on a decrypted field'), 'Filtering on a decrypted field must be rejected.');
+$encryptedFilter['filters'] = [];
+$encryptedClean = $validator->prepare($encryptedFilter);
+$check($encryptedClean['errors'] === [], 'A display-only decrypted column with a count should validate: ' . implode('; ', $encryptedClean['errors']));
+$encryptedQuery = $engine->buildQuery($encryptedClean['definition'], []);
+$check(str_contains($encryptedQuery['sql'], '`slocloud_tbl_students`.`student_data_encrypted` AS `c0`'), 'Decrypted fields should select the ciphertext column.');
+$check(str_contains($encryptedQuery['sql'], 'COUNT(DISTINCT `slocloud_tbl_students`.`student_data_encrypted`) AS `c1`'), 'Counting a decrypted field should aggregate the ciphertext column.');
+$check($encryptedQuery['column_meta'][0]['encrypted'] === 'c_number' && $encryptedQuery['column_meta'][1]['encrypted'] === null, 'Column metadata should mark which cells need decryption.');
+$check(!str_contains($encryptedQuery['sql'], 'ORDER BY'), 'Cleared sorts on decrypted fields must not reach the SQL.');
+$decryptingEngine = new ReportEngine(null, 'mysql', 'slocloud_tbl_', $catalog, [], static fn(string $ciphertext): array => $ciphertext === 'bad' ? throw new RuntimeException('nope') : ['c_number' => 'C' . $ciphertext, 'first_name' => 'F', 'last_name' => 'L']);
+$quietLog = ini_set('error_log', sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'slocloud-reporting-test.log'); // the 'bad' ciphertext logs on purpose
+$decrypted = $decryptingEngine->decryptRows([['c0' => '001', 'c1' => 2], ['c0' => '001', 'c1' => 1], ['c0' => 'bad', 'c1' => 1], ['c0' => null, 'c1' => 0]], $encryptedQuery['column_meta']);
+$check(array_map(static fn(array $r) => $r['c0'], $decrypted) === ['C001', 'C001', '(unreadable)', null], 'decryptRows should decode ciphertext cells, mark failures, and pass nulls through.');
+$check($decrypted[0]['c1'] === 2, 'decryptRows must leave aggregate cells untouched.');
+ini_set('error_log', (string)$quietLog);
+$check($engine->decryptRows([['c0' => 'x']], [['alias' => 'c0', 'encrypted' => null]]) === [['c0' => 'x']], 'Rows without decrypted columns pass through unchanged.');
+$check($validator->prepare($seed)['definition']['options']['admin_only'] === true, 'Reports without the option must default to administrators-only.');
+$openSeed = $seed;
+$openSeed['options']['admin_only'] = false;
+$check($validator->prepare($openSeed)['definition']['options']['admin_only'] === false, 'Reports can be opened to all users explicitly.');
+$check($validator->blank()['options']['admin_only'] === true, 'New reports should start administrators-only.');
+$check(report_can_view($seed, false) === false && report_can_view($openSeed, false) === true && report_can_view($seed, true) === true, 'report_can_view should honor the option for non-managers only.');
+
 $rows = [
     ['c0' => 'A', 'c1' => 'met', 'c2' => 2],
     ['c0' => 'A', 'c1' => 'not_met', 'c2' => 1],
     ['c0' => 'B', 'c1' => 'met', 'c2' => 4],
 ];
-$display = $engine->postProcess($rows, $query['column_meta'], true);
+$singleBreakMeta = [
+    ['alias' => 'c0', 'label' => 'Course', 'break' => true, 'summarize' => false],
+    ['alias' => 'c1', 'label' => 'Outcome', 'break' => false, 'summarize' => false],
+    ['alias' => 'c2', 'label' => 'Count', 'break' => false, 'summarize' => true],
+];
+$display = $engine->postProcess($rows, $singleBreakMeta, true);
 $kinds = array_column($display, 'kind');
 $check($kinds === ['data', 'data', 'subtotal', 'data', 'subtotal', 'total'], 'Break rows should close before the next group and end with a total.');
 $check(end($display)['cells']['c2'] === 7.0, 'Grand total should sum summarized values.');
@@ -154,7 +254,10 @@ $check(report_user_can_manage($roleDb(0, 0), 'slocloud_tbl_') === false, 'Accoun
 $check(report_user_can_manage($roleDb(1, 1), 'slocloud_tbl_') === true, 'Global administrators should receive management access.');
 
 $pageSource = (string)file_get_contents(__DIR__ . '/../src/administration/dynamic_reports.php');
-$check(str_contains($pageSource, 'position:sticky') && str_contains($pageSource, '--report-sticky-top'), 'Viewer table headers should stay pinned below sticky page chrome.');
+$reportCss = (string)file_get_contents(__DIR__ . '/../src/assets/css/custom-reports.css');
+$check(str_contains($pageSource, 'assets/css/custom-reports.css') && str_contains($pageSource, 'class="card-body p-0 table-responsive report-viewer-scroll"'), 'The viewer should load the report stylesheet and render results inside the scroll container.');
+$check(preg_match('/\.report-viewer-scroll\s*\{[^}]*overflow:\s*auto;/s', $reportCss) === 1, 'The results scroll container should scroll internally instead of growing the page.');
+$check(preg_match('/\.report-viewer-scroll \.report-results > thead > tr > th\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;[^}]*background:/s', $reportCss) === 1, 'Viewer table headers should stay pinned at the top of the results scroll container with an opaque background.');
 $check(str_contains($pageSource, 'window.print()'), 'The print view should invoke the browser print dialog.');
 $check(str_contains($pageSource, 'fputcsv'), 'CSV export should use the shared display-row stream.');
 

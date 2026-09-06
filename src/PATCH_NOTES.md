@@ -13,6 +13,20 @@
 
 ### New Features
 
+- Custom reports can display decrypted student identity fields (Student ID,
+  First Name, Last Name). They are decoded after the query runs, so they can
+  be shown, exported, printed, and counted but not filtered, sorted, or
+  grouped; runs, prints, and exports that include them are audited. Refresh
+  the report catalog after upgrading to make the fields available. Internal
+  row keys are now labeled "Key" so they are not confused with the Student ID.
+- Every custom report has an "Administrators only" option, on by default and
+  on for all existing reports. Turning it off lets any active user run, print,
+  and export that report.
+- New reports can be created by pasting a JSON definition (New from JSON, or
+  Advanced Source from the editor), not only by editing an existing one.
+- Added the "CSLO report" starter: student ID, achievement level, CSLO code and
+  description, course, and section for the selected terms, up to 20,000 rows.
+  The default maximum row limit is now 20,000 to match.
 - Added a global-administrator-only LTI 1.1 launch bootstrapper using the standard AdminLTE interface. Administrators can open canonical section and cross-listed launch contexts directly from their respective administration screens, review the generated LTI parameters, create an OAuth HMAC signature in the browser, inspect its timestamp, nonce, and signature, and submit the simulated launch through the production validation path.
 - Added activation and deactivation controls for terms, departments, outcomes,
   programs, courses, sections, students, enrollments, assessments, and
@@ -24,6 +38,10 @@
 
 ### Improvements
 
+- Custom report limits are now configurable instead of hardcoded: the new
+  `reports` section of `config.yaml` (also on the System Configuration page)
+  sets the maximum and default row limits, the multi-select option search
+  size, the `in` filter value cap, and the option search debounce.
 - Normalized enrollments under course sections using `section_fk`; term, CRN, and course context now resolve through the section record across imports, administration, dashboards, LTI authorization, and Dynamic Reports.
 - Added a guarded enrollment migration utility that backs up legacy mappings, validates term/CRN resolution, supports retaining unresolved legacy rows for later review, and works with both MySQL and SQL Server installations.
 - Enforced one CRN per term and updated fresh setup schemas and starter reports for the section-owned enrollment model.

@@ -7,7 +7,7 @@ use RuntimeException;
 
 final class ReportStore
 {
-    private const SEED_LIBRARY_VERSION = 5;
+    private const SEED_LIBRARY_VERSION = 6;
 
     public function __construct(private readonly string $directory, private readonly ?string $seedDirectory = null)
     {

@@ -231,6 +231,7 @@ $sectionConfig = [
     'app' => ['icon' => 'fas fa-laptop', 'title' => 'Application Settings'],
     'theme' => ['icon' => 'fas fa-palette', 'title' => 'Theme Settings'],
     'email' => ['icon' => 'fas fa-envelope', 'title' => 'Email Settings'],
+    'reports' => ['icon' => 'fas fa-table', 'title' => 'Custom Report Settings'],
 ];
 
 // Load theme system (auto-loads ThemeContext and Theme)

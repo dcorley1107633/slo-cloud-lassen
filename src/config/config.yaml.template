@@ -198,6 +198,65 @@ logging:
   # @default: 90
   max_log_age_days: 90
 
+# Custom Reports
+# Limits for the Custom Report builder (Administration > Custom report).
+# NOTES
+# - These bound how much data one report run pulls into PHP memory and into the
+#   browser. A run fetches every row at once, builds subtotals in memory, and
+#   renders the whole result as a single HTML table (or streams it to CSV).
+# - Raise them gradually and watch PHP memory_limit, max_execution_time, and
+#   the web server / gateway timeout.
+# - Changes apply on the next report run; saved report definitions are not
+#   rewritten. A saved row limit above the new maximum is clamped at run time,
+#   not rejected.
+# - This whole section is optional. When it is missing from config.yaml the
+#   defaults below are used, so existing installs keep their current behavior.
+reports:
+  # @label: Maximum Row Limit
+  # @description: Largest row limit a report definition may request
+  # @required: false
+  # @type: integer
+  # @default: 20000
+  # @validation: min=1,max=100000
+  # @help: Upper bound for the per-report "Row limit" option. Every run is capped here in SQL (LIMIT / TOP), so no report can exceed it even if its saved definition asks for more. The default of 20,000 is sized for the shipped CSLO report. A run that large holds every row in PHP memory and renders every row into one HTML table, so watch memory_limit, prefer the CSV export over the on-screen table for the largest reports, and lower this if the server struggles.
+  max_row_limit: 20000
+
+  # @label: Default Row Limit
+  # @description: Row limit pre-filled for new reports
+  # @required: false
+  # @type: integer
+  # @default: 500
+  # @validation: min=1,max=100000
+  # @help: Used when a new report is created and when a saved definition omits its row limit. Must not exceed reports.max_row_limit; a larger value is silently reduced to the maximum.
+  default_row_limit: 500
+
+  # @label: Multi-select Option Limit
+  # @description: Maximum options returned by one multi-select filter search
+  # @required: false
+  # @type: integer
+  # @default: 100
+  # @validation: min=1,max=5000
+  # @help: Multi-select filters load their choices on demand as the user types. Each search returns at most this many distinct values; when more match, the control asks the user to keep typing. Larger values mean bigger dropdowns and heavier DISTINCT queries on wide tables.
+  option_search_limit: 100
+
+  # @label: Maximum IN Filter Values
+  # @description: Maximum values accepted by one "in" filter
+  # @required: false
+  # @type: integer
+  # @default: 100
+  # @validation: min=1,max=5000
+  # @help: Caps how many values a single "in" filter (including multi-select filters and their saved defaults) may pass to the query. Each value becomes one bound parameter, and SQL Server rejects statements with more than 2,100 parameters in total, so consider this cap together with the number of filters on a report.
+  in_filter_max_values: 100
+
+  # @label: Option Search Debounce (ms)
+  # @description: Delay before a multi-select search runs after typing stops
+  # @required: false
+  # @type: integer
+  # @default: 200
+  # @validation: min=0,max=5000
+  # @help: Milliseconds the multi-select filter waits after the last keystroke before querying for options. Raise it on slow databases to cut down on abandoned searches; lower it for a snappier feel.
+  option_search_debounce_ms: 200
+
 # Theme Configuration
 theme:
   # @label: Default Theme

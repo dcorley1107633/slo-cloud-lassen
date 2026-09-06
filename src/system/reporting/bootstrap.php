@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/ReportCatalogBuilder.php';
+require_once __DIR__ . '/ReportSettings.php';
 require_once __DIR__ . '/ReportDefinitionValidator.php';
 require_once __DIR__ . '/ReportStore.php';
 require_once __DIR__ . '/ReportEngine.php';
@@ -9,6 +10,7 @@ require_once __DIR__ . '/../Core/Security.php';
 
 use SLOCloud\Core\Security;
 use SLOCloud\Reporting\ReportCatalogBuilder;
+use SLOCloud\Reporting\ReportSettings;
 use SLOCloud\Reporting\ReportStore;
 
 /**
@@ -99,6 +101,21 @@ function report_load_catalog(): ?array
     return null;
 }
 
+/**
+ * Resolve the tunable report limits (row caps, option search size, ...).
+ *
+ * Reads the `reports` section of config.yaml through the application Config
+ * when one is available and falls back to ReportSettings::DEFAULTS otherwise,
+ * so setup and tests can use the reporting classes before configuration
+ * exists. Pass the result to ReportEngine / ReportDefinitionValidator.
+ *
+ * @return array<string,int>
+ */
+function report_settings(?\SLOCloud\Core\Config $config = null): array
+{
+    return $config === null ? ReportSettings::normalize([]) : ReportSettings::fromConfig($config);
+}
+
 function report_store(): ReportStore
 {
     static $store;
@@ -130,6 +147,47 @@ function report_require_manage(bool $canManage): void
         http_response_code(403);
         throw new RuntimeException('Administrator permission is required for this report action.');
     }
+}
+
+/**
+ * Every definition carries options.admin_only, default on, so reports saved
+ * before the option existed stay administrator-only. A report with it off is
+ * open to every active signed-in user; a report with it on is hidden from
+ * non-managers and its view, run, print, export, and option routes deny.
+ */
+function report_can_view(array $definition, bool $canManage): bool
+{
+    if ($canManage) return true;
+    return !filter_var($definition['options']['admin_only'] ?? true, FILTER_VALIDATE_BOOLEAN);
+}
+
+function report_require_view(array $definition, bool $canManage): void
+{
+    if (!report_can_view($definition, $canManage)) {
+        http_response_code(403);
+        throw new RuntimeException('This report is available to administrators only.');
+    }
+}
+
+/**
+ * Decoder for catalog fields of type `encrypted` (student identity).
+ *
+ * Returns a closure mapping a ciphertext to its decoded key/value array, or
+ * null when the student encryption key is not configured; ReportEngine then
+ * reports that instead of running a report that selects such a field.
+ */
+function report_decryptor(\SLOCloud\Core\Config $config): ?\Closure
+{
+    foreach (['Encryption', 'StudentEncryption'] as $class) {
+        if (!class_exists('\\SLOCloud\\Core\\' . $class, false)) require_once __DIR__ . '/../Core/' . $class . '.php';
+    }
+    try {
+        $encryption = new \SLOCloud\Core\StudentEncryption($config);
+    } catch (\Throwable $error) {
+        error_log('Custom report student decryption unavailable: ' . $error->getMessage());
+        return null;
+    }
+    return static fn(string $ciphertext): array => $encryption->decryptStudentData($ciphertext);
 }
 
 function report_verify_csrf(): void

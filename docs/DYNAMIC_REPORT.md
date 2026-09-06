@@ -38,7 +38,7 @@ The Dynamic Report Designer is not:
 - A replacement for purpose-built operational screens.
 - A visualization or chart designer.
 - A scheduled-report or email-delivery service.
-- A mechanism for exposing fields excluded by the report catalog.
+- A mechanism for exposing fields excluded by the report catalog. The decrypted student identity fields (type `encrypted`, section 16.1) are the one deliberate, audited exception.
 - A mechanism for bypassing SLO Cloud authorization, table prefixes, database portability, or audit requirements.
 
 ## 4. Terminology
@@ -64,7 +64,7 @@ The Dynamic Report Designer is not:
 An authenticated user allowed into the administration reporting area may:
 
 - Open Report Manager.
-- See saved reports.
+- See saved reports whose **Administrators only** option is off.
 - Open a valid saved report.
 - Enter filter values.
 - Run the report.
@@ -73,13 +73,16 @@ An authenticated user allowed into the administration reporting area may:
 
 A viewer must not see or invoke definition-management actions.
 
+Every definition carries `options.admin_only`, which defaults to on so reports saved before the option existed stay restricted. A report with the option off is listed for, and can be run, printed, and exported by, every active signed-in user. A report with the option on is omitted from a viewer's list, and its view, run, print, export, and option-search routes return 403 for non-managers.
+
 ### 5.2 Report manager
 
 A global administrator, including an enabled emergency administrator, may additionally:
 
-- Create a report.
+- Create a report, visually or by pasting JSON (Advanced Source).
 - Edit a visual definition.
 - Edit raw JSON.
+- Mark a report administrators-only or open it to all users.
 - Duplicate a report.
 - Delete a report.
 - Refresh the report catalog.
@@ -134,6 +137,7 @@ The feature is implemented as modes of `administration/dynamic_reports.php`:
 | Edit | `mode=edit&id={id}` | Visual designer for a saved report. |
 | View/run | `mode=view&id={id}` | Filters and report results. |
 | Raw edit | `mode=raw&id={id}` | Validated JSON editor. |
+| Raw create | `mode=raw` | Validated JSON editor starting from the blank definition; the ID is assigned on save. |
 | Print | `mode=print&id={id}` | Bare printable document. |
 | Export | `mode=export&id={id}` | CSV download. |
 
@@ -153,7 +157,7 @@ The top content row contains:
 
 - Left: `Configurable reports built from the master data catalog.`
 - Second line: catalog table count, relationship count, refresh time, and source.
-- Right, managers only: **Refresh Catalog** and **New Report**.
+- Right, managers only: **Refresh Catalog**, **New Report**, and **New from JSON**.
 
 The catalog information must be concise inline metadata, not a large statistics card. On narrow screens the two sides may wrap vertically with a visible gap.
 
@@ -182,6 +186,7 @@ The Reports card contains a striped, hoverable, horizontally responsive table wi
 | Base Table | Friendly catalog table label in code styling. |
 | Columns | Count of display columns. |
 | Filters | Count of runtime filters. |
+| Access | **All users** or **Admins only** badge from `options.admin_only`. |
 | Updated | Local formatted date/time or an em dash. |
 | Actions | Right-aligned, non-wrapping action group. |
 
@@ -334,6 +339,8 @@ Rules:
 - Removing the last column reveals the empty message `No display columns yet.`
 - After add, move, remove, or rerender, keyboard focus should move to the most logical surviving control rather than resetting to the document start.
 
+Fields of type `encrypted` (decrypted student identity) may be added as display columns. While un-aggregated, their Sort and Control break controls are disabled and the row shows a **decrypted** badge, because the value only exists after the query runs; **count** and **count distinct** remain available.
+
 ### 9.7 Filter parameters card
 
 The header contains:
@@ -385,19 +392,23 @@ Rules:
 - Removing the last filter reveals `No filters — the report will return everything up to the row limit.`
 - Filters on a joined table may exclude base rows without a matching joined record because the filter is applied in the SQL `WHERE` clause.
 
+The filter picker omits fields of type `encrypted`; the server rejects them as filters too.
+
 ### 9.8 Options card
 
 | Option | Requirement |
 | --- | --- |
-| Row limit | Integer from 1 through 5,000; default 500. |
+| Row limit | Integer from 1 through the site maximum (`reports.max_row_limit`, default 20,000); new reports start at `reports.default_row_limit` (default 500). The maximum is shown beside the field. |
 | Show grand total row | Bootstrap switch; default on. |
+| Administrators only | Bootstrap switch; default on. When off, every active signed-in user can run, print, and export the report. |
 
-The server clamps an out-of-range row limit even when client validation is bypassed.
+The server clamps an out-of-range row limit to the configured maximum even when client validation is bypassed.
 
 ### 9.9 Save and cancel
 
 - **Save Report** is the primary action and includes a save icon.
 - **Cancel** returns an existing report to its viewer and a new report to Report Manager.
+- **Advanced Source (JSON)** opens the raw editor for the same report, or raw creation for an unsaved report.
 - Saving is a CSRF-protected POST.
 - The client trims name and description and serializes the complete definition.
 - The server validates catalog identifiers, connectivity, operators, aggregates, column requirements, row limit, and property types.
@@ -413,17 +424,17 @@ It contains:
 1. A warning alert stating that invalid JSON and invalid definitions will not be saved.
 2. A **Raw report JSON** card.
 3. A monospaced textarea showing pretty-printed UTF-8 JSON.
-4. **Validate and Save JSON**, **Cancel**, and **Visual Editor** actions.
+4. **Validate and Save JSON** (**Validate and Create Report** for a new report), **Cancel**, and **Visual Editor** actions.
 
 Requirements:
 
 - The textarea is required and has spellcheck disabled.
 - The submitted JSON must decode to an object/associative array.
-- The embedded ID must exactly match the route ID.
+- For an existing report the embedded ID must exactly match the route ID. For raw creation (`mode=raw` without an ID) the embedded ID and timestamps are ignored and assigned on save.
 - Raw editing uses the same normalizer and catalog validator as visual editing.
 - Raw editing cannot add an unavailable table, field, relationship, operator, or aggregate.
 - Validation errors rerender the submitted JSON rather than replacing it with the last saved copy.
-- A successful raw update is audited and redirects to the viewer.
+- A successful raw create or update is audited and redirects to the viewer.
 
 ## 11. Report viewer and runner specification
 
@@ -486,10 +497,10 @@ The multiselect must match the Course Orbit interaction pattern:
 - The dropdown contains a search input, scrollable checkbox results, status text, and **Clear**.
 - Opening an empty dropdown loads options automatically.
 - A server-rendered selected value does not count as a completed option load; the first open must still request the full available option list.
-- Typing searches after a 200 ms debounce.
+- Typing searches after a debounce of `reports.option_search_debounce_ms` (default 200 ms).
 - Pressing Enter in search does not submit the report.
-- Up to 100 options are returned per request.
-- When more than 100 values match, status says to keep typing to narrow the results.
+- Up to `reports.option_search_limit` options (default 100) are returned per request.
+- When more values than that match, status says to keep typing to narrow the results.
 - Current selections remain selected when the search result changes.
 - **Clear** removes every selection.
 - A required multiselect with no selection blocks submit, marks the toggle invalid, announces the problem in the status area, and receives focus.
@@ -662,7 +673,8 @@ CSV contains raw report values rather than the screen's formatted currency/date 
   ],
   "options": {
     "row_limit": 500,
-    "grand_total": true
+    "grand_total": true,
+    "admin_only": true
   },
   "created_at": "2026-07-22T00:00:00+00:00",
   "updated_at": "2026-07-22T00:00:00+00:00"
@@ -680,8 +692,9 @@ CSV contains raw report values rather than the screen's formatted currency/date 
 | `joins` | string array | Each ID must exist and connect in traversal order. |
 | `columns` | object array | At least one; every field must belong to a connected table. |
 | `filters` | object array | Optional; every field must belong to a connected table. |
-| `options.row_limit` | integer | Clamped to 1–5,000. |
+| `options.row_limit` | integer | Clamped to 1–`reports.max_row_limit` (default 20,000); `reports.default_row_limit` when omitted. |
 | `options.grand_total` | boolean | Normalized from submitted value. |
+| `options.admin_only` | boolean | Default true when omitted; false opens the report to every active user. |
 | `created_at` | ISO timestamp | Set by store on first save. |
 | `updated_at` | ISO timestamp | Set by store on every save. |
 
@@ -718,6 +731,8 @@ Each field supplies at least:
 
 Sensitive, secret-bearing, internal security, and unsuitable heavy fields must be removed when the catalog is built. A field excluded from the catalog cannot be selected, filtered, raw-added, queried, printed, or exported.
 
+The one exception is decrypted student identity. The `students` table exposes `student_id`, `first_name`, and `last_name` as fields of type `encrypted`, each carrying `encrypted.source` (the ciphertext column `student_data_encrypted`, which itself stays excluded) and `encrypted.key` (the JSON member to show). They are selected as ciphertext in SQL and decoded in PHP after the query runs, so they can be displayed, exported, printed, and counted but never filtered, sorted, or used as control breaks. When the student encryption key is not configured, a report that selects one of them reports that instead of running. Internal row keys (`_pk`, `_fk`) are labeled **Key** so they are not mistaken for the business **Student ID**. Existing installs must refresh the catalog once after upgrading to see these fields.
+
 ### 16.2 Normalized types
 
 | Type | Inputs | Operators | Aggregates |
@@ -730,6 +745,7 @@ Sensitive, secret-bearing, internal security, and unsuitable heavy fields must b
 | `text` | Text | contains, does not contain, blank checks | count |
 | `enum` | Select | equals, not equals, in | count, distinct count |
 | `bool` | Select | equals, in | count, sum |
+| `encrypted` | Text (display only) | none | count, distinct count |
 
 The UI must derive available operators and aggregates from the catalog rather than hard-coding a broader set.
 
@@ -772,18 +788,28 @@ Only catalog relationships may generate joins.
 - `not_null` excludes SQL null and, for string-like fields, empty string.
 - `not_equals` retains null rows; string-like fields also retain empty strings.
 - `contains`, `not_contains`, and `starts_with` escape `%`, `_`, the escape character, and SQL Server bracket syntax so user text cannot accidentally become a wildcard expression.
-- `in` accepts an array or comma-separated value, removes blanks, and is capped at 100 values.
+- `in` accepts an array or comma-separated value, removes blanks, and is capped at `reports.in_filter_max_values` values (default 100).
 - A non-array operator rejects an array value.
 - An optional `between` may use both bounds or only one bound.
 - A required `between` requires both bounds.
 - A date-only upper bound applied to a datetime uses an exclusive next-day boundary so the whole selected day is included.
 
-### 17.4 Row limits
+### 17.4 Row limits and tunable settings
 
-- Default: 500.
-- Hard maximum: 5,000.
+- Default row limit: `reports.default_row_limit` (default 500).
+- Maximum row limit: `reports.max_row_limit` (default 20,000). The SQL `LIMIT` / `TOP` is always bounded by it, so a saved definition that asks for more is clamped at run time rather than rejected.
 - The result reports `limit_reached` when returned data-row count is at least the configured limit.
 - A reached limit indicates potentially truncated results; it is not an execution error.
+
+Every limit in this feature is read from the `reports` section of `config.yaml` (editable on the System Configuration page) through `ReportSettings`. `ReportSettings::DEFAULTS` and `config.yaml.template` carry the same defaults, and the reporting classes fall back to them when constructed without settings (tests, setup).
+
+| Key | Default | Governs |
+| --- | --- | --- |
+| `reports.max_row_limit` | 20,000 | Upper bound for `options.row_limit`, the SQL row bound, and the editor field's `max`. |
+| `reports.default_row_limit` | 500 | Row limit for new reports and for definitions that omit one. Clamped to the maximum. |
+| `reports.option_search_limit` | 100 | Distinct values returned per multi-select option search. |
+| `reports.in_filter_max_values` | 100 | Values accepted by one `in` filter, including saved multi-select defaults. |
+| `reports.option_search_debounce_ms` | 200 | Delay after typing stops before a multi-select search runs. |
 
 ## 18. Persistence and starter library
 
@@ -827,9 +853,11 @@ Audit these events:
 | Raw update | Report ID and actor. |
 | Duplicate | New report ID, source report ID, actor. |
 | Delete | Deleted report ID and actor. |
-| Export | Report ID, actor, and data-row count. |
+| Export | Report ID, actor, data-row count, and decrypted field labels when present. |
+| Raw create | New report ID and actor. |
+| Sensitive run / print | Report ID, actor, data-row count, and decrypted field labels. Logged only when the report includes decrypted fields. |
 
-Ordinary on-screen runs and print views are not currently audit events. Adding them later is permissible only if volume, retention, and privacy impacts are reviewed.
+Ordinary on-screen runs and print views are not audit events unless the report includes decrypted student fields. Auditing every run is permissible only if volume, retention, and privacy impacts are reviewed.
 
 ## 21. Accessibility requirements
 
@@ -917,8 +945,8 @@ The feature must conform to the shared SLO Cloud WCAG 2.2 AA interface requireme
 - Opening Report Manager must not execute every report query.
 - Opening a viewer must not execute the report until Run, Print, or Export is selected.
 - Multiselect options load on demand rather than being embedded in the page.
-- Option search is debounced by 200 ms and capped at 100 displayed results.
-- Report results are capped at 5,000 data rows.
+- Option search is debounced (`reports.option_search_debounce_ms`, default 200 ms) and capped (`reports.option_search_limit`, default 100 results).
+- Report results are capped at `reports.max_row_limit` data rows (default 20,000).
 - The catalog is loaded from persisted runtime state and rebuilt only on first use, setup, or explicit refresh.
 - Results use an internal scroll container to avoid creating an unbounded page for large reports.
 

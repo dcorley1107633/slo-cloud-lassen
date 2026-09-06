@@ -13,23 +13,48 @@ final class ReportEngine
         'avg' => 'AVG', 'min' => 'MIN', 'max' => 'MAX',
     ];
 
+    /** @var array<string,int> normalized ReportSettings */
+    private readonly array $settings;
+
+    /** @var \Closure|null maps an encrypted catalog field's ciphertext to its decoded key/value array */
+    private readonly ?\Closure $decryptor;
+
+    /**
+     * @param array         $settings  Tunable limits from the `reports` config section
+     *                                 (see ReportSettings::DEFAULTS). Anything missing
+     *                                 falls back to the documented default.
+     * @param callable|null $decryptor Decoder for catalog fields of type `encrypted`
+     *                                 (string ciphertext => array). Null means such
+     *                                 columns cannot be produced and a run says so.
+     */
     public function __construct(
         private readonly ?PDO $pdo,
         private readonly string $driver,
         private readonly string $prefix,
-        private readonly array $catalog
+        private readonly array $catalog,
+        array $settings = [],
+        ?callable $decryptor = null
     ) {
+        $this->settings = ReportSettings::normalize($settings);
+        $this->decryptor = $decryptor === null ? null : \Closure::fromCallable($decryptor);
     }
 
     public function run(array $rawDefinition, array $values): array
     {
         if ($this->pdo === null) return ['errors' => ['A database connection is required to run reports.']];
-        $prepared = (new ReportDefinitionValidator($this->catalog))->prepare($rawDefinition);
+        $prepared = (new ReportDefinitionValidator($this->catalog, $this->settings))->prepare($rawDefinition);
         if ($prepared['errors'] !== []) {
             return ['errors' => array_merge($prepared['errors'], ['This saved report no longer matches the current catalog. Open it in the editor and re-save it to repair the report.'])];
         }
         $query = $this->buildQuery($prepared['definition'], $values);
         if ($query['errors'] !== []) return $query;
+        $encryptedColumns = array_values(array_map(
+            static fn(array $column): string => $column['label'],
+            array_filter($query['column_meta'], static fn(array $column): bool => $column['encrypted'] !== null)
+        ));
+        if ($encryptedColumns !== [] && $this->decryptor === null) {
+            return ['errors' => ['This report includes decrypted student fields, but student data decryption is not configured on this server.']];
+        }
         try {
             $statement = $this->pdo->prepare($query['sql']);
             $statement->execute($query['params']);
@@ -38,20 +63,58 @@ final class ReportEngine
             error_log('Custom report query failed: ' . $error->getMessage());
             return ['errors' => ['The report query could not be completed. Check the report definition or contact an administrator.']];
         }
+        $rows = $this->decryptRows($rows, $query['column_meta']);
         $displayRows = $this->postProcess($rows, $query['column_meta'], (bool)$prepared['definition']['options']['grand_total']);
         return [
             'errors' => [], 'column_meta' => $query['column_meta'], 'display_rows' => $displayRows,
             'row_count' => count($rows), 'row_limit' => $prepared['definition']['options']['row_limit'],
             'limit_reached' => count($rows) >= $prepared['definition']['options']['row_limit'],
             'sql' => $query['sql'], 'params' => $query['params'],
+            'encrypted_columns' => $encryptedColumns,
         ];
+    }
+
+    /**
+     * Replace the ciphertext cells of encrypted catalog fields with the decoded value.
+     *
+     * Decryption happens here, after the query, which is why such fields can be
+     * displayed, exported, printed, and counted but never filtered, sorted, or
+     * grouped in SQL. Each distinct ciphertext is decoded once per run; a cell
+     * that fails to decode shows "(unreadable)" and the failure is logged.
+     */
+    public function decryptRows(array $rows, array $columnMeta): array
+    {
+        $targets = [];
+        foreach ($columnMeta as $column) if (($column['encrypted'] ?? null) !== null) $targets[$column['alias']] = $column['encrypted'];
+        if ($targets === [] || $rows === []) return $rows;
+        if ($this->decryptor === null) throw new \RuntimeException('Student data decryption is not configured.');
+        $cache = [];
+        foreach ($rows as &$row) {
+            foreach ($targets as $alias => $key) {
+                $ciphertext = $row[$alias] ?? null;
+                if ($ciphertext === null || $ciphertext === '') { $row[$alias] = null; continue; }
+                $ciphertext = (string)$ciphertext;
+                if (!array_key_exists($ciphertext, $cache)) {
+                    try {
+                        $cache[$ciphertext] = ($this->decryptor)($ciphertext);
+                    } catch (Throwable $error) {
+                        error_log('Custom report could not decrypt a student record: ' . $error->getMessage());
+                        $cache[$ciphertext] = null;
+                    }
+                }
+                $decoded = $cache[$ciphertext];
+                $row[$alias] = $decoded === null ? '(unreadable)' : (string)($decoded[$key] ?? '');
+            }
+        }
+        unset($row);
+        return $rows;
     }
 
     public function buildQuery(array $definition, array $values): array
     {
         $errors = [];
         $isSqlServer = in_array(strtolower($this->driver), ['mssql', 'sqlsrv'], true);
-        $limit = max(1, min(ReportDefinitionValidator::HARD_ROW_LIMIT, (int)$definition['options']['row_limit']));
+        $limit = max(1, min($this->settings['max_row_limit'], (int)$definition['options']['row_limit']));
         $select = [];
         $groupBy = [];
         $columnMeta = [];
@@ -59,7 +122,9 @@ final class ReportEngine
         foreach ($definition['columns'] as $index => $column) if ($column['aggregate'] !== '') $hasAggregate = true;
         foreach ($definition['columns'] as $index => $column) {
             $fieldMeta = $this->catalog['tables'][$column['table']]['fields'][$column['field']];
-            $expression = $this->qualified($column['table'], $column['field']);
+            // Encrypted catalog fields select their ciphertext column; decryptRows() decodes it after the fetch.
+            $encrypted = $fieldMeta['encrypted'] ?? null;
+            $expression = $this->qualified($column['table'], $encrypted !== null ? $encrypted['source'] : $column['field']);
             $aggregate = $column['aggregate'];
             if ($aggregate !== '') {
                 $function = self::AGGREGATES[$aggregate];
@@ -77,6 +142,7 @@ final class ReportEngine
                 'money' => $fieldMeta['type'] === 'decimal' && !in_array($aggregate, ['count', 'count_distinct'], true),
                 'break' => (bool)$column['break'], 'summarize' => (bool)$column['summarize'] && $numeric,
                 'type' => $fieldMeta['type'], 'aggregate' => $aggregate,
+                'encrypted' => $encrypted !== null && $aggregate === '' ? $encrypted['key'] : null,
             ];
         }
         $sql = 'SELECT ' . ($isSqlServer ? "TOP ({$limit}) " : '') . implode(', ', $select);
@@ -106,17 +172,17 @@ final class ReportEngine
             if ($column['break']) $order[] = $this->quote('c' . $index) . ' ' . strtoupper($column['sort'] ?: 'asc');
         }
         foreach ($definition['columns'] as $index => $column) {
-            if (!$column['break'] && $column['sort'] !== '') $order[] = $this->quote('c' . $index) . ' ' . strtoupper($column['sort']);
+            if (!$column['break'] && $column['sort'] !== '' && $columnMeta[$index]['encrypted'] === null) $order[] = $this->quote('c' . $index) . ' ' . strtoupper($column['sort']);
         }
         if ($order !== []) $sql .= ' ORDER BY ' . implode(', ', $order);
         if (!$isSqlServer) $sql .= ' LIMIT ' . $limit;
         return ['errors' => $errors, 'sql' => $sql, 'params' => $params, 'column_meta' => $columnMeta];
     }
 
-    public function distinctValues(array $rawDefinition, int $filterIndex, string $term, int $limit = 100): array
+    public function distinctValues(array $rawDefinition, int $filterIndex, string $term, ?int $limit = null): array
     {
         if ($this->pdo === null) return ['errors' => ['A database connection is required to load filter values.'], 'values' => [], 'truncated' => false];
-        $prepared = (new ReportDefinitionValidator($this->catalog))->prepare($rawDefinition);
+        $prepared = (new ReportDefinitionValidator($this->catalog, $this->settings))->prepare($rawDefinition);
         if ($prepared['errors'] !== []) return ['errors' => $prepared['errors'], 'values' => [], 'truncated' => false];
         $definition = $prepared['definition'];
         if (!isset($definition['filters'][$filterIndex]) || $definition['filters'][$filterIndex]['control'] !== 'multi_select') {
@@ -125,7 +191,7 @@ final class ReportEngine
         $filter = $definition['filters'][$filterIndex];
         $column = $this->qualified($filter['table'], $filter['field']);
         $isSqlServer = in_array(strtolower($this->driver), ['mssql', 'sqlsrv'], true);
-        $cap = max(1, min(100, $limit));
+        $cap = max(1, min($this->settings['option_search_limit'], $limit ?? $this->settings['option_search_limit']));
         $fetch = $cap + 1;
         $sql = 'SELECT DISTINCT ' . ($isSqlServer ? "TOP ({$fetch}) " : '') . $column . ' AS option_value FROM ' . $this->quote($this->prefix . $definition['base_table']);
         $relationshipMap = [];
@@ -246,7 +312,7 @@ final class ReportEngine
             }
             if ($operator === 'in') {
                 $items = is_array($value) ? $value : explode(',', (string)$value);
-                $items = array_values(array_slice(array_filter(array_map(static fn($v) => is_scalar($v) ? trim((string)$v) : '', $items), static fn($v) => $v !== ''), 0, 100));
+                $items = array_values(array_slice(array_filter(array_map(static fn($v) => is_scalar($v) ? trim((string)$v) : '', $items), static fn($v) => $v !== ''), 0, $this->settings['in_filter_max_values']));
                 if ($items === []) { if ($filter['required']) $errors[] = ($filter['label'] ?: "Filter " . ($index + 1)) . ' is required.'; continue; }
                 $where[] = $column . ' IN (' . implode(', ', array_fill(0, count($items), '?')) . ')';
                 array_push($params, ...$items);

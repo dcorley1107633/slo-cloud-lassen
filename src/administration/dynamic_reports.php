@@ -26,7 +26,11 @@ if ($catalog === null) {
     ]);
 }
 $canManage = report_user_can_manage($db, $dbPrefix);
-$engine = new ReportEngine($db->getConnection(), $db->getDriver(), $dbPrefix, $catalog);
+// Tunable limits (row caps, option search size, debounce) from the `reports` config section.
+$settings = report_settings($config);
+// Student identity fields are decrypted after the query runs; without a configured
+// student encryption key those columns cannot be produced and the run says so.
+$engine = new ReportEngine($db->getConnection(), $db->getDriver(), $dbPrefix, $catalog, $settings, report_decryptor($config));
 $mode = isset($_GET['mode']) && is_string($_GET['mode']) ? $_GET['mode'] : 'list';
 $id = max(0, (int)($_GET['id'] ?? 0));
 $errors = [];
@@ -154,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($mode, ['list', 'edit', 'r
             $submitted = json_decode((string)($_POST['definition'] ?? ''), true, 512, JSON_THROW_ON_ERROR);
             if (!is_array($submitted)) throw new RuntimeException('The submitted report definition is invalid.');
             $submitted['id'] = $id;
-            $prepared = (new ReportDefinitionValidator($catalog))->prepare($submitted);
+            $prepared = (new ReportDefinitionValidator($catalog, $settings))->prepare($submitted);
             if ($prepared['errors'] !== []) {
                 $errors = $prepared['errors'];
                 $definition = $submitted;
@@ -169,14 +173,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($mode, ['list', 'edit', 'r
             $text = (string)($_POST['raw_definition'] ?? '');
             $submitted = json_decode($text, true, 512, JSON_THROW_ON_ERROR);
             if (!is_array($submitted)) throw new RuntimeException('The definition must be a JSON object.');
-            if ((int)($submitted['id'] ?? 0) !== $id) throw new RuntimeException('The report ID cannot be changed in the raw editor.');
-            $prepared = (new ReportDefinitionValidator($catalog))->prepare($submitted);
+            if ($id === 0) {
+                // Advanced-source creation: the pasted id and timestamps are ignored and assigned on save.
+                $submitted['id'] = 0;
+                unset($submitted['created_at'], $submitted['updated_at']);
+            } elseif ((int)($submitted['id'] ?? 0) !== $id) {
+                throw new RuntimeException('The report ID cannot be changed in the raw editor.');
+            }
+            $prepared = (new ReportDefinitionValidator($catalog, $settings))->prepare($submitted);
             if ($prepared['errors'] !== []) { $errors = $prepared['errors']; $rawText = $text; }
             else {
-                $store->save($prepared['definition']);
-                $logger->audit('dynamic_reports', $id, 'raw_update', report_actor_id());
-                $_SESSION['report_flash'] = 'Raw definition saved.';
-                report_redirect('mode=view&id=' . $id);
+                $savedId = $store->save($prepared['definition']);
+                $logger->audit('dynamic_reports', $savedId, $id > 0 ? 'raw_update' : 'raw_create', report_actor_id());
+                $_SESSION['report_flash'] = $id > 0 ? 'Raw definition saved.' : 'Report created from JSON.';
+                report_redirect('mode=view&id=' . $savedId);
             }
         }
     } catch (JsonException $error) {
@@ -191,12 +201,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($mode, ['list', 'edit', 'r
 if (in_array($mode, ['export', 'print'], true)) {
     report_verify_csrf();
     $definition = report_definition_or_404($store, $id);
+    report_require_view($definition, $canManage);
     $values = report_post_values($definition);
     $result = $engine->run($definition, $values);
     if ($result['errors'] !== []) {
         http_response_code(422);
         echo '<h1>Report could not run</h1><ul><li>' . implode('</li><li>', array_map('report_h', $result['errors'])) . '</li></ul>';
         exit;
+    }
+    if ($mode === 'print' && $result['encrypted_columns'] !== []) {
+        $logger->audit('dynamic_reports', $id, 'print_sensitive', report_actor_id(), ['row_count' => $result['row_count'], 'decrypted_fields' => $result['encrypted_columns']]);
     }
     if ($mode === 'export') {
         $slug = trim(preg_replace('/[^a-z0-9]+/i', '-', strtolower((string)$definition['name'])), '-') ?: 'report';
@@ -220,7 +234,7 @@ if (in_array($mode, ['export', 'print'], true)) {
             fputcsv($output, $line, ',', '"', '');
         }
         fclose($output);
-        $logger->audit('dynamic_reports', $id, 'export', report_actor_id(), ['row_count' => $result['row_count']]);
+        $logger->audit('dynamic_reports', $id, 'export', report_actor_id(), ['row_count' => $result['row_count']] + ($result['encrypted_columns'] !== [] ? ['decrypted_fields' => $result['encrypted_columns']] : []));
         exit;
     }
     $filterEcho = [];
@@ -260,8 +274,8 @@ if ($flash !== ''): ?><div class="alert alert-success" role="alert"><?= report_h
 if ($errors !== []): ?><div class="alert alert-danger" role="alert" data-a11y-focus="true"><strong>Please fix the following:</strong><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= report_h($error) ?></li><?php endforeach; ?></ul></div><?php endif;
 
 if ($mode === 'list'):
-    $definitions = $store->all();
-    $validator = new ReportDefinitionValidator($catalog);
+    $definitions = array_values(array_filter($store->all(), static fn(array $item): bool => report_can_view($item, $canManage)));
+    $validator = new ReportDefinitionValidator($catalog, $settings);
     ?>
     <div class="slo-report-manager">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
@@ -276,6 +290,7 @@ if ($mode === 'list'):
                         <button class="btn btn-outline-secondary" type="submit" title="Re-read tables, fields, and relationships from the database"><i class="fas fa-rotate me-1" aria-hidden="true"></i>Refresh Catalog</button>
                     </form>
                     <a class="btn btn-primary" href="?mode=edit"><i class="fas fa-plus me-1" aria-hidden="true"></i>New Report</a>
+                    <a class="btn btn-outline-warning" href="?mode=raw" title="Create a report by pasting its JSON definition"><i class="fas fa-code me-1" aria-hidden="true"></i>New from JSON</a>
                 </div>
             <?php endif; ?>
         </div>
@@ -285,7 +300,7 @@ if ($mode === 'list'):
             <div class="card-body p-0 table-responsive">
                 <table class="table table-striped table-hover mb-0">
                     <caption class="visually-hidden">Saved custom reports</caption>
-                    <thead><tr><th scope="col">Report</th><th scope="col">Description</th><th scope="col">Base Table</th><th scope="col">Columns</th><th scope="col">Filters</th><th scope="col">Updated</th><th scope="col" class="text-end">Actions</th></tr></thead>
+                    <thead><tr><th scope="col">Report</th><th scope="col">Description</th><th scope="col">Base Table</th><th scope="col">Columns</th><th scope="col">Filters</th><th scope="col">Access</th><th scope="col">Updated</th><th scope="col" class="text-end">Actions</th></tr></thead>
                     <tbody>
                     <?php foreach ($definitions as $item): $validation = $validator->prepare($item); ?>
                         <tr>
@@ -294,6 +309,7 @@ if ($mode === 'list'):
                             <td><code><?= report_h($catalog['tables'][$item['base_table']]['label'] ?? $item['base_table']) ?></code></td>
                             <td><?= count($item['columns'] ?? []) ?></td>
                             <td><?= count($item['filters'] ?? []) ?></td>
+                            <td class="small text-nowrap"><?= report_can_view($item, false) ? '<span class="badge text-bg-secondary">All users</span>' : '<span class="badge text-bg-dark">Admins only</span>' ?></td>
                             <td class="small text-nowrap"><?= report_h(isset($item['updated_at']) ? date('M j, Y g:i A', strtotime($item['updated_at'])) : "\u{2014}") ?></td>
                             <td class="text-end text-nowrap">
                                 <a class="btn btn-sm btn-outline-primary" href="?mode=view&amp;id=<?= (int)$item['id'] ?>" title="Run or view"><i class="fas fa-play me-1" aria-hidden="true"></i>View</a>
@@ -315,7 +331,7 @@ if ($mode === 'list'):
 
 <?php elseif ($mode === 'edit'):
     report_require_manage($canManage);
-    $definition ??= $id > 0 ? report_definition_or_404($store, $id) : (new ReportDefinitionValidator($catalog))->blank();
+    $definition ??= $id > 0 ? report_definition_or_404($store, $id) : (new ReportDefinitionValidator($catalog, $settings))->blank();
     ?>
     <div class="slo-report-builder">
         <div id="pruneNotice" class="alert alert-warning d-none" role="status" aria-live="polite"></div>
@@ -352,9 +368,9 @@ if ($mode === 'list'):
                 </div>
             </div>
 
-            <div class="card mb-3"><div class="card-header"><i class="fas fa-sliders me-2" aria-hidden="true"></i>Options</div><div class="card-body"><div class="row g-3 align-items-center"><div class="col-auto"><label class="form-label mb-0" for="rowLimit">Row limit</label><input class="form-control" type="number" min="1" max="<?= ReportDefinitionValidator::HARD_ROW_LIMIT ?>" id="rowLimit" style="width:7rem"></div><div class="col-auto form-check form-switch mt-4 ms-2"><input class="form-check-input" type="checkbox" id="grandTotal"><label class="form-check-label" for="grandTotal">Show grand total row</label></div></div></div></div>
+            <div class="card mb-3"><div class="card-header"><i class="fas fa-sliders me-2" aria-hidden="true"></i>Options</div><div class="card-body"><div class="row g-3 align-items-center"><div class="col-auto"><label class="form-label mb-0" for="rowLimit">Row limit</label><input class="form-control" type="number" min="1" max="<?= (int)$settings['max_row_limit'] ?>" id="rowLimit" style="width:7rem" aria-describedby="rowLimitHelp"><div class="form-text" id="rowLimitHelp">1 to <?= number_format($settings['max_row_limit']) ?> rows (site maximum)</div></div><div class="col-auto form-check form-switch mt-4 ms-2"><input class="form-check-input" type="checkbox" id="grandTotal"><label class="form-check-label" for="grandTotal">Show grand total row</label></div><div class="col-auto form-check form-switch mt-4 ms-2"><input class="form-check-input" type="checkbox" id="adminOnly" aria-describedby="adminOnlyHelp"><label class="form-check-label" for="adminOnly">Administrators only</label><div class="form-text" id="adminOnlyHelp">Off lets every signed-in user run, print, and export this report.</div></div></div></div></div>
 
-            <div class="d-flex gap-2 mb-4"><button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk me-1" aria-hidden="true"></i>Save Report</button><a class="btn btn-outline-secondary" href="<?= $id > 0 ? '?mode=view&amp;id=' . $id : '?' ?>">Cancel</a></div>
+            <div class="d-flex gap-2 mb-4"><button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk me-1" aria-hidden="true"></i>Save Report</button><a class="btn btn-outline-secondary" href="<?= $id > 0 ? '?mode=view&amp;id=' . $id : '?' ?>">Cancel</a><a class="btn btn-outline-warning ms-auto" href="<?= $id > 0 ? '?mode=raw&amp;id=' . $id : '?mode=raw' ?>" title="Edit or paste the JSON definition"><i class="fas fa-code me-1" aria-hidden="true"></i>Advanced Source (JSON)</a></div>
         </form>
     </div>
 
@@ -363,6 +379,7 @@ if ($mode === 'list'):
         'use strict';
         const catalog = <?= json_encode($catalog, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         const def = <?= json_encode($definition, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+        const reportSettings = <?= json_encode($settings) ?>;
         const $ = id => document.getElementById(id);
         const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
         const relationships = Array.isArray(catalog.relationships) ? catalog.relationships : [];
@@ -449,7 +466,7 @@ if ($mode === 'list'):
             });
         }
 
-        function fillPicker(select) {
+        function fillPicker(select, forFilters = false) {
             select.innerHTML = '';
             const connected = normalize();
             connected.forEach(table => {
@@ -457,6 +474,7 @@ if ($mode === 'list'):
                 const group = document.createElement('optgroup');
                 group.label = catalog.tables[table].label;
                 Object.entries(catalog.tables[table].fields).forEach(([field, meta]) => {
+                    if (forFilters && meta.type === 'encrypted') return; // decrypted after the query: cannot filter
                     const option = document.createElement('option');
                     option.value = `${table}.${field}`;
                     option.textContent = meta.label;
@@ -480,8 +498,11 @@ if ($mode === 'list'):
                 const meta = fieldMeta(column.table, column.field);
                 const aggregates = catalog.types[meta.type]?.aggregates || [];
                 const numeric = ['int', 'decimal', 'bool'].includes(meta.type) || column.aggregate !== '';
+                // Decrypted fields exist only after the query runs: no SQL sort or control break unless aggregated.
+                const decrypted = meta.type === 'encrypted' && column.aggregate === '';
+                if (decrypted) { column.sort = ''; column.break = false; }
                 const row = document.createElement('tr');
-                row.innerHTML = `<td class="text-nowrap report-drag-buttons"><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="up" title="Move up" aria-label="Move column ${index + 1} up"><i class="fas fa-caret-up" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="down" title="Move down" aria-label="Move column ${index + 1} down"><i class="fas fa-caret-down" aria-hidden="true"></i></button></td><td class="small">${esc(fieldTitle(column.table, column.field))}</td><td><input class="form-control form-control-sm" data-action="label" value="${esc(column.label)}" placeholder="${esc(meta.label)}" aria-label="Label override for column ${index + 1}"></td><td><select class="form-select form-select-sm" data-action="aggregate" aria-label="Aggregate for column ${index + 1}"><option value="">— group value —</option>${aggregates.map(aggregate => `<option value="${esc(aggregate)}" ${column.aggregate === aggregate ? 'selected' : ''}>${esc(catalog.aggregates[aggregate])}</option>`).join('')}</select></td><td><select class="form-select form-select-sm" data-action="sort" aria-label="Sort for column ${index + 1}"><option value="">—</option><option value="asc" ${column.sort === 'asc' ? 'selected' : ''}>Asc</option><option value="desc" ${column.sort === 'desc' ? 'selected' : ''}>Desc</option></select></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="break" ${column.break ? 'checked' : ''} aria-label="Control break for column ${index + 1}"></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="summarize" ${column.summarize ? 'checked' : ''} ${numeric ? '' : 'disabled'} aria-label="Summarize column ${index + 1}"></td><td><button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="remove" title="Remove" aria-label="Remove column ${index + 1}">&times;</button></td>`;
+                row.innerHTML = `<td class="text-nowrap report-drag-buttons"><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="up" title="Move up" aria-label="Move column ${index + 1} up"><i class="fas fa-caret-up" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="down" title="Move down" aria-label="Move column ${index + 1} down"><i class="fas fa-caret-down" aria-hidden="true"></i></button></td><td class="small">${esc(fieldTitle(column.table, column.field))}${meta.type === 'encrypted' ? ' <span class="badge text-bg-info">decrypted</span>' : ''}</td><td><input class="form-control form-control-sm" data-action="label" value="${esc(column.label)}" placeholder="${esc(meta.label)}" aria-label="Label override for column ${index + 1}"></td><td><select class="form-select form-select-sm" data-action="aggregate" aria-label="Aggregate for column ${index + 1}"><option value="">— group value —</option>${aggregates.map(aggregate => `<option value="${esc(aggregate)}" ${column.aggregate === aggregate ? 'selected' : ''}>${esc(catalog.aggregates[aggregate])}</option>`).join('')}</select></td><td><select class="form-select form-select-sm" data-action="sort" ${decrypted ? 'disabled' : ''} aria-label="Sort for column ${index + 1}"><option value="">—</option><option value="asc" ${column.sort === 'asc' ? 'selected' : ''}>Asc</option><option value="desc" ${column.sort === 'desc' ? 'selected' : ''}>Desc</option></select></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="break" ${column.break ? 'checked' : ''} ${decrypted ? 'disabled' : ''} aria-label="Control break for column ${index + 1}"></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="summarize" ${column.summarize ? 'checked' : ''} ${numeric ? '' : 'disabled'} aria-label="Summarize column ${index + 1}"></td><td><button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="remove" title="Remove" aria-label="Remove column ${index + 1}">&times;</button></td>`;
                 row.querySelector('[data-action="up"]').addEventListener('click', () => { if (index > 0) { def.columns.splice(index - 1, 0, def.columns.splice(index, 1)[0]); renderColumns(); } });
                 row.querySelector('[data-action="down"]').addEventListener('click', () => { if (index < def.columns.length - 1) { def.columns.splice(index + 1, 0, def.columns.splice(index, 1)[0]); renderColumns(); } });
                 row.querySelector('[data-action="remove"]').addEventListener('click', () => { def.columns.splice(index, 1); renderColumns(); });
@@ -529,7 +550,7 @@ if ($mode === 'list'):
         function renderAll() {
             renderJoins();
             fillPicker($('columnPicker'));
-            fillPicker($('filterPicker'));
+            fillPicker($('filterPicker'), true);
             $('addColumn').disabled = !def.base_table;
             $('addFilter').disabled = !def.base_table;
             renderColumns();
@@ -545,8 +566,9 @@ if ($mode === 'list'):
             $('baseTable').appendChild(option);
         });
         $('baseTable').value = def.base_table || '';
-        $('rowLimit').value = def.options?.row_limit || 500;
+        $('rowLimit').value = def.options?.row_limit || reportSettings.default_row_limit;
         $('grandTotal').checked = def.options?.grand_total !== false;
+        $('adminOnly').checked = def.options?.admin_only !== false;
         $('baseTable').addEventListener('change', event => {
             def.base_table = event.target.value;
             normalize(true);
@@ -572,7 +594,7 @@ if ($mode === 'list'):
             def.name = $('reportName').value.trim();
             def.description = $('reportDescription').value.trim();
             def.base_table = $('baseTable').value;
-            def.options = {row_limit:parseInt($('rowLimit').value, 10) || 500, grand_total:$('grandTotal').checked};
+            def.options = {row_limit:parseInt($('rowLimit').value, 10) || reportSettings.default_row_limit, grand_total:$('grandTotal').checked, admin_only:$('adminOnly').checked};
             normalize();
             $('definitionJson').value = JSON.stringify(def);
         });
@@ -584,17 +606,26 @@ if ($mode === 'list'):
 
 <?php elseif ($mode === 'raw'):
     report_require_manage($canManage);
-    $definition = report_definition_or_404($store, $id);
+    // Without an id this is advanced-source creation: start from the blank definition.
+    $definition = $id > 0 ? report_definition_or_404($store, $id) : (new ReportDefinitionValidator($catalog, $settings))->blank();
     $rawText ??= json_encode($definition, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    ?><div class="alert alert-warning" role="alert"><i class="fas fa-triangle-exclamation me-2" aria-hidden="true"></i><strong>Advanced editing only.</strong> Changing this raw report configuration can corrupt or break the report. Invalid JSON and invalid report definitions will not be saved.</div>
-    <form method="post"><input type="hidden" name="csrf_token" value="<?= report_h($_SESSION['csrf_token']) ?>"><input type="hidden" name="action" value="raw_save"><div class="card mb-3"><div class="card-header"><i class="fas fa-code me-2" aria-hidden="true"></i>Raw report JSON</div><div class="card-body"><label class="form-label" for="rawDefinition">Configuration for report #<?= $id ?></label><textarea class="form-control font-monospace" id="rawDefinition" name="raw_definition" rows="28" spellcheck="false" required><?= report_h($rawText) ?></textarea></div></div><div class="d-flex gap-2 mb-4"><button class="btn btn-warning" type="submit"><i class="fas fa-floppy-disk me-1" aria-hidden="true"></i>Validate and Save JSON</button><a class="btn btn-outline-secondary" href="?mode=view&amp;id=<?= $id ?>">Cancel</a><a class="btn btn-outline-primary ms-auto" href="?mode=edit&amp;id=<?= $id ?>"><i class="fas fa-pen me-1" aria-hidden="true"></i>Visual Editor</a></div></form>
+    ?><div class="alert alert-warning" role="alert"><i class="fas fa-triangle-exclamation me-2" aria-hidden="true"></i><strong>Advanced editing only.</strong> <?= $id > 0 ? 'Changing this raw report configuration can corrupt or break the report.' : 'Paste a complete report definition below; any <code>id</code> or timestamps in the pasted JSON are ignored and assigned when the report is created.' ?> Invalid JSON and invalid report definitions will not be saved.</div>
+    <form method="post"><input type="hidden" name="csrf_token" value="<?= report_h($_SESSION['csrf_token']) ?>"><input type="hidden" name="action" value="raw_save"><div class="card mb-3"><div class="card-header"><i class="fas fa-code me-2" aria-hidden="true"></i>Raw report JSON</div><div class="card-body"><label class="form-label" for="rawDefinition"><?= $id > 0 ? 'Configuration for report #' . $id : 'New report configuration' ?></label><textarea class="form-control font-monospace" id="rawDefinition" name="raw_definition" rows="28" spellcheck="false" required><?= report_h($rawText) ?></textarea></div></div><div class="d-flex gap-2 mb-4"><button class="btn btn-warning" type="submit"><i class="fas fa-floppy-disk me-1" aria-hidden="true"></i><?= $id > 0 ? 'Validate and Save JSON' : 'Validate and Create Report' ?></button><a class="btn btn-outline-secondary" href="<?= $id > 0 ? '?mode=view&amp;id=' . $id : '?' ?>">Cancel</a><a class="btn btn-outline-primary ms-auto" href="<?= $id > 0 ? '?mode=edit&amp;id=' . $id : '?mode=edit' ?>"><i class="fas fa-pen me-1" aria-hidden="true"></i>Visual Editor</a></div></form>
 
 <?php elseif ($mode === 'view'):
     $definition = report_definition_or_404($store, $id);
-    $prepared = (new ReportDefinitionValidator($catalog))->prepare($definition);
+    report_require_view($definition, $canManage);
+    $prepared = (new ReportDefinitionValidator($catalog, $settings))->prepare($definition);
     $values = $_SERVER['REQUEST_METHOD'] === 'POST' ? report_post_values($definition) : [];
     $result = null;
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') { report_verify_csrf(); $result = $engine->run($definition, $values); }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        report_verify_csrf();
+        $result = $engine->run($definition, $values);
+        // On-screen runs are audited only when they expose decrypted student fields.
+        if ($result['errors'] === [] && $result['encrypted_columns'] !== []) {
+            $logger->audit('dynamic_reports', $id, 'run_sensitive', report_actor_id(), ['row_count' => $result['row_count'], 'decrypted_fields' => $result['encrypted_columns']]);
+        }
+    }
     ?><div class="slo-report-viewer">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><a class="btn btn-outline-secondary" href="?"><i class="fas fa-arrow-left me-1" aria-hidden="true"></i>Report Manager</a><?php if ($canManage): ?><a class="btn btn-outline-primary" href="?mode=edit&amp;id=<?= $id ?>"><i class="fas fa-pen me-1" aria-hidden="true"></i>Edit Definition</a><?php endif; ?></div>
         <?php if ($definition['description'] !== ''): ?><p class="text-muted"><?= report_h($definition['description']) ?></p><?php endif; ?>
@@ -702,7 +733,7 @@ if ($mode === 'list'):
                     };
 
                     container.addEventListener('shown.bs.dropdown', () => { search.focus(); if (!optionsLoaded) loadOptions(); });
-                    search.addEventListener('input', () => { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(loadOptions, 200); });
+                    search.addEventListener('input', () => { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(loadOptions, <?= (int)$settings['option_search_debounce_ms'] ?>); });
                     search.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); });
                     clear.addEventListener('click', () => { selected.clear(); list.querySelectorAll('input[type="checkbox"]').forEach(checkbox => checkbox.checked = false); syncSelection(); });
                     syncSelection();

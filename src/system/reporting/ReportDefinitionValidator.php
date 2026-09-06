@@ -5,10 +5,17 @@ namespace SLOCloud\Reporting;
 
 final class ReportDefinitionValidator
 {
-    public const HARD_ROW_LIMIT = 5000;
+    /** @var array<string,int> normalized ReportSettings */
+    private readonly array $settings;
 
-    public function __construct(private readonly array $catalog)
+    /**
+     * @param array $settings Tunable limits from the `reports` config section
+     *                        (see ReportSettings::DEFAULTS). Anything missing
+     *                        falls back to the documented default.
+     */
+    public function __construct(private readonly array $catalog, array $settings = [])
     {
+        $this->settings = ReportSettings::normalize($settings);
     }
 
     /** @return array{definition: array, errors: string[]} */
@@ -23,9 +30,11 @@ final class ReportDefinitionValidator
         $definition['name'] = trim($this->scalar($raw['name'] ?? '', 'Report name', $errors));
         $definition['description'] = trim($this->scalar($raw['description'] ?? '', 'Description', $errors));
         if ($definition['name'] === '') $errors[] = 'Report name is required.';
-        $rowLimit = (int)($raw['options']['row_limit'] ?? 500);
-        $definition['options']['row_limit'] = max(1, min(self::HARD_ROW_LIMIT, $rowLimit));
+        $rowLimit = (int)($raw['options']['row_limit'] ?? $this->settings['default_row_limit']);
+        $definition['options']['row_limit'] = max(1, min($this->settings['max_row_limit'], $rowLimit));
         $definition['options']['grand_total'] = filter_var($raw['options']['grand_total'] ?? true, FILTER_VALIDATE_BOOLEAN);
+        // Default on: definitions saved before the option existed stay administrator-only.
+        $definition['options']['admin_only'] = filter_var($raw['options']['admin_only'] ?? true, FILTER_VALIDATE_BOOLEAN);
         foreach (['created_at', 'updated_at'] as $stamp) {
             if (isset($raw[$stamp]) && is_scalar($raw[$stamp])) $definition[$stamp] = (string)$raw[$stamp];
         }
@@ -91,6 +100,11 @@ final class ReportDefinitionValidator
                 $errors[] = 'Column ' . ($index + 1) . ' cannot be both aggregated and a control break.';
                 $break = false;
             }
+            if (isset($fieldMeta['encrypted']) && $aggregate === '' && ($sort !== '' || $break)) {
+                $errors[] = 'Column ' . ($index + 1) . ' (' . $fieldMeta['label'] . ') is decrypted after the query runs, so it cannot be sorted or used as a control break.';
+                $sort = '';
+                $break = false;
+            }
             $numeric = in_array($fieldMeta['type'], ['int', 'decimal', 'bool'], true) || $aggregate !== '';
             $definition['columns'][] = [
                 'table' => $table, 'field' => $fieldName,
@@ -111,6 +125,10 @@ final class ReportDefinitionValidator
             $field = $this->resolveField($filter, $joined, 'Filter ' . ($index + 1), $errors);
             if ($field === null) continue;
             [$table, $fieldName, $fieldMeta] = $field;
+            if (isset($fieldMeta['encrypted'])) {
+                $errors[] = 'Filter ' . ($index + 1) . ' (' . $fieldMeta['label'] . ') cannot filter on a decrypted field.';
+                continue;
+            }
             $allowedOperators = $this->catalog['types'][$fieldMeta['type']]['operators'] ?? [];
             $operator = trim($this->scalar($filter['operator'] ?? '', 'Filter operator', $errors));
             if (!in_array($operator, $allowedOperators, true)) {
@@ -145,7 +163,7 @@ final class ReportDefinitionValidator
         return [
             'id' => 0, 'name' => '', 'description' => '',
             'base_table' => $defaultBase, 'joins' => [],
-            'columns' => [], 'filters' => [], 'options' => ['row_limit' => 500, 'grand_total' => true],
+            'columns' => [], 'filters' => [], 'options' => ['row_limit' => $this->settings['default_row_limit'], 'grand_total' => true, 'admin_only' => true],
         ];
     }
 
@@ -176,7 +194,7 @@ final class ReportDefinitionValidator
     private function defaultValue(mixed $value): string|array
     {
         if (is_array($value)) {
-            return array_values(array_slice(array_map(static fn($v) => is_scalar($v) ? (string)$v : '', $value), 0, 100));
+            return array_values(array_slice(array_map(static fn($v) => is_scalar($v) ? (string)$v : '', $value), 0, $this->settings['in_filter_max_values']));
         }
         return is_scalar($value) ? (string)$value : '';
     }

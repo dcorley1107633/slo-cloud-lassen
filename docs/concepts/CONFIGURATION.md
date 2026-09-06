@@ -111,6 +111,27 @@ For Gmail, use these settings:
 - Username: Your full Gmail address
 - Password: [App Password](https://support.google.com/accounts/answer/185833) (not your Gmail password)
 
+### Custom Report Settings
+
+```yaml
+reports:
+  max_row_limit: 20000
+  default_row_limit: 500
+  option_search_limit: 100
+  in_filter_max_values: 100
+  option_search_debounce_ms: 200
+```
+
+These bound how much data one Custom Report run pulls into PHP memory and into the browser. A run fetches every row at once, builds subtotals in memory, and renders the whole result as one HTML table (or streams it to CSV), so raise them gradually and watch PHP `memory_limit`, `max_execution_time`, and any gateway timeout. Changes apply on the next report run; saved reports are not rewritten.
+
+- **max_row_limit**: Largest row limit a report may request. Every run is capped here in SQL (`LIMIT` / `TOP`); a saved report asking for more is clamped, not rejected. Default 20000, sized for the shipped CSLO report.
+- **default_row_limit**: Row limit pre-filled for new reports and used when a definition omits one. Silently reduced to `max_row_limit` if larger. Default 500.
+- **option_search_limit**: Distinct values returned by one multi-select filter search; beyond that the control asks the user to keep typing. Default 100.
+- **in_filter_max_values**: Values one `in` filter (including multi-select filters and their saved defaults) may pass to the query. Each becomes a bound parameter, and SQL Server allows at most 2,100 per statement. Default 100.
+- **option_search_debounce_ms**: Milliseconds to wait after the last keystroke before a multi-select search runs. Default 200.
+
+The section is optional. An existing `config.yaml` without it receives these defaults from `config.yaml.template` automatically, and the section also appears on the System Configuration page.
+
 ## Configuration Constants
 
 After loading `config.yaml`, these constants are available throughout the application:

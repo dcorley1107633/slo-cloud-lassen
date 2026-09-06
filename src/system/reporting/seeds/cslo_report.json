@@ -1,0 +1,96 @@
+{
+    "id": 0,
+    "name": "CSLO report",
+    "description": "Every assessed student for the selected terms with the CSLO, its description, the achievement level, the course, and the section. Administrators only: includes decrypted student IDs.",
+    "base_table": "terms",
+    "joins": [
+        "sections.term_fk->terms.terms_pk",
+        "sections.course_fk->courses.courses_pk",
+        "enrollment.section_fk->sections.sections_pk",
+        "enrollment.student_fk->students.students_pk",
+        "assessments.enrollment_fk->enrollment.enrollment_pk",
+        "assessments.student_learning_outcome_fk->student_learning_outcomes.student_learning_outcomes_pk"
+    ],
+    "columns": [
+        {
+            "table": "students",
+            "field": "student_id",
+            "label": "Student ID",
+            "aggregate": "",
+            "sort": "",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "assessments",
+            "field": "achievement_level",
+            "label": "Assessment result",
+            "aggregate": "",
+            "sort": "",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "student_learning_outcomes",
+            "field": "slo_code",
+            "label": "CSLO",
+            "aggregate": "",
+            "sort": "",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "student_learning_outcomes",
+            "field": "slo_description",
+            "label": "CSLO description",
+            "aggregate": "",
+            "sort": "",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "courses",
+            "field": "course_number",
+            "label": "Course",
+            "aggregate": "",
+            "sort": "asc",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "courses",
+            "field": "course_name",
+            "label": "Course name",
+            "aggregate": "",
+            "sort": "",
+            "break": false,
+            "summarize": false
+        },
+        {
+            "table": "sections",
+            "field": "section_id",
+            "label": "Section ID",
+            "aggregate": "",
+            "sort": "asc",
+            "break": false,
+            "summarize": false
+        }
+    ],
+    "filters": [
+        {
+            "table": "terms",
+            "field": "term_name",
+            "operator": "in",
+            "control": "multi_select",
+            "label": "Term",
+            "required": false,
+            "default": [],
+            "default_to": ""
+        }
+    ],
+    "options": {
+        "row_limit": 20000,
+        "grand_total": false,
+        "admin_only": true
+    }
+}
