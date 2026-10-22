@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF validation
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     $action = $_POST['action'] ?? '';
@@ -716,8 +716,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             "DELETE po FROM {$dbPrefix}program_outcomes po
                              INNER JOIN {$dbPrefix}programs p
                                  ON p.programs_pk = po.program_fk
-                             WHERE p.term_fk = ? AND " . lifecycle_active_predicate('programs', 'p', $dbPrefix)
-                                . " AND " . lifecycle_active_predicate('courses', 'c', $dbPrefix),
+                             WHERE p.term_fk = ?",
                             [$termPk],
                             'i'
                         );

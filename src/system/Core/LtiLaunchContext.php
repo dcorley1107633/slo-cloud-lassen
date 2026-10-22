@@ -14,6 +14,86 @@ final class LtiAuthorizationException extends RuntimeException
  */
 final class LtiLaunchContext
 {
+    /**
+     * Parse a tokenized format string against an actual value.
+     *
+     * Format example: "{CRN}.{TERM}" against "45581.202533"
+     * Returns array of lowercased token names => extracted values.
+     * Returns empty array if the value does not match the format.
+     *
+     * Rules:
+     * - Delimiter characters are every character in the format outside of {TOKEN} blocks.
+     * - Non-final tokens capture [^<delimiters>]+ (values must not contain delimiter chars).
+     * - The final token captures everything remaining (.+).
+     *
+     * @param string $format e.g. "{CRN}.{TERM}"
+     * @param string $value  e.g. "45581.202533"
+     * @return array e.g. ['crn' => '45581', 'term' => '202533']
+     */
+    public static function parseTokenFormat(string $format, string $value): array
+    {
+        if (empty($format) || empty($value)) {
+            return [];
+        }
+
+        preg_match_all('/\{([A-Z_]+)\}/', $format, $matches);
+        $tokens = $matches[1];
+
+        if (empty($tokens)) {
+            return [];
+        }
+
+        // All characters outside token blocks are potential delimiters
+        $delimString = preg_replace('/\{[A-Z_]+\}/', '', $format);
+        $delimChars  = array_unique(array_filter(str_split($delimString), fn($c) => $c !== ''));
+
+        $nonFinalGroup = empty($delimChars)
+            ? '(.+?)'
+            : '([^' . preg_quote(implode('', $delimChars), '/') . ']+)';
+
+        $pattern = preg_quote($format, '/');
+        $lastToken = end($tokens);
+        foreach ($tokens as $token) {
+            $replacement = ($token === $lastToken) ? '(.+)' : $nonFinalGroup;
+            $pattern = str_replace(preg_quote('{' . $token . '}', '/'), $replacement, $pattern);
+        }
+        $pattern = '/^' . $pattern . '$/';
+
+        if (!preg_match($pattern, $value, $m)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($tokens as $i => $token) {
+            $result[strtolower($token)] = $m[$i + 1];
+        }
+        return $result;
+    }
+
+    /**
+     * Read the CRN and term from an LMS offering identifier.
+     *
+     * XLS cross-listing is handled before the generic token parse: the optional
+     * period is normalised away and the trailing 6-digit banner term extracted.
+     * The full normalised value (e.g. XLS27202633) becomes the CRN for downstream
+     * XLS detection.
+     *
+     * @return array{crn: ?string, term: ?string}
+     */
+    public static function parseOffering(string $format, string $raw): array
+    {
+        if ($raw !== '' && stripos($raw, 'XLS') === 0) {
+            $normalized = str_replace('.', '', $raw);
+            if (preg_match('/^XLS.+?(\d{6})$/', $normalized, $matches)) {
+                return ['crn' => $normalized, 'term' => $matches[1]];
+            }
+            return ['crn' => null, 'term' => null];
+        }
+
+        $tokens = self::parseTokenFormat($format, $raw);
+        return ['crn' => $tokens['crn'] ?? null, 'term' => $tokens['term'] ?? null];
+    }
+
     public static function resolve(object $db, string $dbPrefix, array $launch): array
     {
         $bannerTerm = trim((string)($launch['lti_term_id'] ?? ''));

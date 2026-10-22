@@ -12,149 +12,32 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../system/includes/init.php';
 
-// Override $configData with raw (unencrypted) values for the config editor display
+// Use raw (stored) values for the config editor display. The LTI shared secret
+// is the one encrypted value an administrator must be able to read, to copy it
+// into the LMS, so it is shown decrypted; save() re-encrypts it.
 $configPath = __DIR__ . '/../config/config.yaml';
 $configData = $config->all();
+$configData['lti']['consumer_secret'] = (string)$config->get('lti.consumer_secret', '');
 $lookupKeyConfigured = (string)$config->get('security.student_lookup_key', '') !== '';
 
-// Parse template for field metadata
+// Where key.yaml is now, and what pointed the application there.
+require_once __DIR__ . '/../system/Core/KeyFolder.php';
+$keyEnvironmentPath = (string)(getenv('SLOCloud_KEY_PATH') ?: '');
+$activeKeyFile = \SLOCloud\Core\KeyFolder::activeKeyFile($config->keyPathCandidates());
+$keySource = \SLOCloud\Core\KeyFolder::keySource($activeKeyFile, $keyEnvironmentPath, (string)$config->getRaw('security.key_path', ''));
+$keyInWebRoot = $activeKeyFile !== null && \SLOCloud\Core\KeyFolder::isInsideWebRoot(
+    $activeKeyFile,
+    \SLOCloud\Core\KeyFolder::webRoots([dirname(__DIR__), (string)($_SERVER['DOCUMENT_ROOT'] ?? '')])
+);
+$keyFolderExample = PHP_OS_FAMILY === 'Windows' ? 'D:\\SLO Cloud 5\\keys' : '/etc/slocloud/keys';
+// SLOCloud_KEY_PATH overrides config.yaml, so a move could not take effect.
+$keyMoveAllowed = $activeKeyFile !== null && $keyEnvironmentPath === '';
+
+// Field metadata from the template.
+require_once __DIR__ . '/../system/includes/config_form.php';
 $templatePath = __DIR__ . '/../config/config.yaml.template';
-$fields = parseTemplate($templatePath);
-
-/**
- * Parse template to extract field metadata
- */
-function parseTemplate(string $path): array {
-    return \SLOCloud\Core\Config::schemaFromTemplate($path);
-}
-
-/**
- * Render form field from metadata
- */
-function renderField(string $key, array $meta, $value): string {
-    $parts = explode('.', $key);
-    $name = implode('_', $parts);
-    $id = $name;
-    $type = $meta['type'] ?? 'string';
-    $label = $meta['label'] ?? ucfirst($parts[1] ?? $key);
-    $required = ($meta['required'] ?? 'false') === 'true';
-    $help = $meta['help'] ?? '';
-    $helpId = $id . '-help';
-    $describedBy = $help !== '' ? ' aria-describedby="' . htmlspecialchars($helpId) . '"' : '';
-    
-    // Fields that cannot be changed after installation (would break existing data)
-    $lockedFields = [
-        'database.driver' => 'Database driver cannot be changed after installation. Changing this requires data migration.',
-        'database.name' => 'Database name cannot be changed after installation. Changing this would lose access to your existing data.',
-        'database.prefix' => 'Table prefix cannot be changed after installation. Changing this would lose access to your existing tables.'
-    ];
-    
-    $html = '<div class="mb-3">';
-    $html .= '<label for="' . htmlspecialchars($id) . '" class="form-label">';
-    $html .= htmlspecialchars($label);
-    if ($required) $html .= ' <span class="text-danger">*</span>';
-    $html .= '</label>';
-    
-    // Check if this field is locked
-    if (isset($lockedFields[$key])) {
-        // Render as disabled field with hidden input to preserve value
-        if ($type === 'select') {
-            $html .= '<select class="form-select" id="' . htmlspecialchars($id) . '" aria-describedby="' . htmlspecialchars($helpId) . '" disabled>';
-            $options = explode(',', $meta['options'] ?? '');
-            foreach ($options as $opt) {
-                if (str_contains($opt, '|')) {
-                    [$val, $lbl] = explode('|', $opt, 2);
-                } else {
-                    $val = $lbl = $opt;
-                }
-                $selected = ($value == $val) ? 'selected' : '';
-                $html .= '<option value="' . htmlspecialchars($val) . '" ' . $selected . '>';
-                $html .= htmlspecialchars($lbl) . '</option>';
-            }
-            $html .= '</select>';
-        } else {
-            $html .= '<input type="text" class="form-control" id="' . htmlspecialchars($id) . '" value="' . htmlspecialchars((string)$value) . '" aria-describedby="' . htmlspecialchars($helpId) . '" disabled>';
-        }
-        
-        // Hidden input to preserve value in POST
-        $html .= '<input type="hidden" name="' . htmlspecialchars($name) . '" value="' . htmlspecialchars((string)$value) . '">';
-        
-        // Warning message
-        $html .= '<small class="form-text text-warning" id="' . htmlspecialchars($helpId) . '">';
-        $html .= '<i class="fas fa-lock mr-1" aria-hidden="true"></i>' . htmlspecialchars($lockedFields[$key]);
-        $html .= '</small>';
-        $html .= '</div>';
-        return $html;
-    }
-    
-    switch ($type) {
-        case 'password':
-            $html .= '<input type="password" class="form-control" id="' . htmlspecialchars($id) . '" ';
-            $html .= 'name="' . htmlspecialchars($name) . '" placeholder="Leave blank to keep current"' . $describedBy . '>';
-            break;
-            
-        case 'boolean':
-            $checked = ($value === true || $value === 'true') ? 'checked' : '';
-            $html .= '<div class="form-check"><input type="checkbox" class="form-check-input" ';
-            $html .= 'id="' . htmlspecialchars($id) . '" name="' . htmlspecialchars($name) . '"' . $describedBy . ' ' . $checked . '>';
-            $html .= '<label class="form-check-label" for="' . htmlspecialchars($id) . '">' . htmlspecialchars($meta['description'] ?? '') . '</label></div>';
-            break;
-            
-        case 'select':
-            $html .= '<select class="form-select" id="' . htmlspecialchars($id) . '" name="' . htmlspecialchars($name) . '"';
-            if ($required) $html .= ' required';
-            if ($required) $html .= ' aria-required="true"';
-            $html .= $describedBy;
-            $html .= '>';
-            
-            $options = explode(',', $meta['options'] ?? '');
-            foreach ($options as $opt) {
-                if (str_contains($opt, '|')) {
-                    [$val, $lbl] = explode('|', $opt, 2);
-                } else {
-                    $val = $lbl = $opt;
-                }
-                $selected = ($value == $val) ? 'selected' : '';
-                $html .= '<option value="' . htmlspecialchars($val) . '" ' . $selected . '>';
-                $html .= htmlspecialchars($lbl) . '</option>';
-            }
-            $html .= '</select>';
-            break;
-            
-        case 'integer':
-            $html .= '<input type="number" class="form-control" id="' . htmlspecialchars($id) . '" ';
-            $html .= 'name="' . htmlspecialchars($name) . '" value="' . htmlspecialchars((string)$value) . '"';
-            if ($required) $html .= ' required';
-            if ($required) $html .= ' aria-required="true"';
-            $html .= $describedBy;
-            if (isset($meta['validation']) && str_contains($meta['validation'], 'min=')) {
-                preg_match('/min=(\d+)/', $meta['validation'], $m);
-                $html .= ' min="' . $m[1] . '"';
-            }
-            if (isset($meta['validation']) && str_contains($meta['validation'], 'max=')) {
-                preg_match('/max=(\d+)/', $meta['validation'], $m);
-                $html .= ' max="' . $m[1] . '"';
-            }
-            $html .= '>';
-            break;
-            
-        default: // string, email, timezone
-            $inputType = ($type === 'email') ? 'email' : 'text';
-            $html .= '<input type="' . $inputType . '" class="form-control" id="' . htmlspecialchars($id) . '" ';
-            $html .= 'name="' . htmlspecialchars($name) . '" value="' . htmlspecialchars((string)$value) . '"';
-            if ($required) $html .= ' required';
-            if ($required) $html .= ' aria-required="true"';
-            $html .= $describedBy;
-            $html .= '>';
-    }
-    
-    if ($help) {
-        $html .= '<small class="form-text text-muted" id="' . htmlspecialchars($helpId) . '">' . htmlspecialchars($help) . '</small>';
-    }
-    
-    $html .= '</div>';
-    return $html;
-}
+// The color scheme has its own page (color_scheme.php), so it is neither shown nor saved here.
+$fields = array_diff_key(\SLOCloud\Core\Config::schemaFromTemplate($templatePath), ['theme.color_scheme' => true]);
 
 // Handle POST requests
 $successMessage = '';
@@ -164,37 +47,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF validation
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     try {
         // Fields that cannot be changed after installation
         $lockedFields = ['database.driver', 'database.name', 'database.prefix'];
-        
-        // Dynamically update all fields from template
-        foreach ($fields as $key => $meta) {
-            // Skip locked fields - they cannot be changed post-installation
-            if (in_array($key, $lockedFields)) {
-                continue;
-            }
-            
-            $postKey = str_replace('.', '_', $key);
-            $type = $meta['type'] ?? 'string';
-            
-            if ($type === 'password') {
-                // Only update if provided
-                if (!empty($_POST[$postKey])) {
-                    $config->set($key, $_POST[$postKey]);
-                }
-            } elseif ($type === 'boolean') {
-                $config->set($key, isset($_POST[$postKey]));
-            } elseif ($type === 'integer') {
-                $config->set($key, (int)($_POST[$postKey] ?? $meta['default'] ?? 0));
-            } else {
-                $config->set($key, trim($_POST[$postKey] ?? $meta['default'] ?? ''));
+        $connectionKeys = ['host', 'port', 'username', 'password'];
+        $databaseBefore = [];
+        foreach ($connectionKeys as $connectionKey) {
+            $databaseBefore[$connectionKey] = $config->get('database.' . $connectionKey);
+        }
+
+        applyPostedConfigFields($config, $fields, $_POST, $lockedFields);
+
+        // Links are built as BASE_URL . 'page.php', so the path must end in /.
+        $config->set('app.base_url', rtrim((string)$config->get('app.base_url', '/'), '/') . '/');
+
+        $logDirectorySetting = trim((string)$config->get('logging.log_directory', ''));
+        if ($logDirectorySetting !== '' && !\SLOCloud\Core\Security::isAbsolutePath($logDirectorySetting)) {
+            throw new \Exception('Log Directory must be a full path outside the web root (for example D:\\SLOCloud5\\logs), or empty to use the application data folder.');
+        }
+        if ($logDirectorySetting !== '' && !is_dir($logDirectorySetting) && !@mkdir($logDirectorySetting, 0700, true)) {
+            throw new \Exception('Log Directory does not exist and SLO Cloud cannot create it. Create the folder and give the application pool modify access to it, or leave Log Directory empty.');
+        }
+
+        // Every page opens the database with these settings, so a typo here would
+        // take the whole site down. Refuse to save settings that cannot connect.
+        $databaseAfter = [];
+        foreach ($connectionKeys as $connectionKey) {
+            $databaseAfter[$connectionKey] = $config->get('database.' . $connectionKey);
+        }
+        if ($databaseAfter !== $databaseBefore) {
+            try {
+                \SLOCloud\Core\Database::open(array_merge($config->allDecrypted()['database'] ?? [], $databaseAfter));
+            } catch (\PDOException $e) {
+                $logger->warning('Configuration save refused: new database settings cannot connect', ['error' => $e->getMessage()]);
+                throw new \Exception('SLO Cloud could not connect to the database with the new Database Settings, so nothing was saved. Check the host, port, username and password. Details: ' . $e->getMessage());
             }
         }
-        
+
         // Save configuration
         $config->save();
         
@@ -202,6 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Reload config data
         $configData = $config->all();
+        $configData['lti']['consumer_secret'] = (string)$config->get('lti.consumer_secret', '');
     } catch (\Exception $e) {
         $errorMessage = 'Failed to save configuration: ' . htmlspecialchars($e->getMessage());
         if ($debugMode) {
@@ -232,6 +125,7 @@ $sectionConfig = [
     'theme' => ['icon' => 'fas fa-palette', 'title' => 'Theme Settings'],
     'email' => ['icon' => 'fas fa-envelope', 'title' => 'Email Settings'],
     'reports' => ['icon' => 'fas fa-table', 'title' => 'Custom Report Settings'],
+    'canvas' => ['icon' => 'fas fa-cloud-arrow-up', 'title' => 'Canvas Deployment Settings'],
 ];
 
 // Load theme system (auto-loads ThemeContext and Theme)
@@ -271,6 +165,12 @@ $theme->showHeader($context);
     <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> Incorrect settings can break your installation. Make sure you have a backup of your config.yaml file.
 </div>
 
+<p>
+    <i class="fas fa-palette" aria-hidden="true"></i>
+    The site color scheme is chosen on the
+    <a href="<?= BASE_URL ?>administration/color_scheme.php">Color Scheme</a> page.
+</p>
+
 <form method="POST">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
     
@@ -288,9 +188,10 @@ $theme->showHeader($context);
                 <div class="col-md-6">
                     <?php
                     $value = $config->get($key, $meta['default'] ?? '');
-                    echo renderField($key, $meta, $value);
+                    echo renderConfigField($key, $meta, $value);
                     ?>
                 </div>
+
                 <?php endforeach; ?>
             </div>
         </div>
@@ -310,6 +211,85 @@ $theme->showHeader($context);
     </div>
 </form>
 
+<!-- Keys Folder Section -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h2 class="card-title">
+            <i class="fas fa-folder" aria-hidden="true"></i>
+            Encryption Keys Folder
+        </h2>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-3">
+            <dt class="col-sm-3">Key file in use</dt>
+            <dd class="col-sm-9">
+                <?php if ($activeKeyFile !== null): ?>
+                    <code id="keyFileInUse"><?= htmlspecialchars($activeKeyFile) ?></code>
+                <?php else: ?>
+                    <span class="text-danger">key.yaml was not found</span>
+                <?php endif; ?>
+            </dd>
+            <dt class="col-sm-3">Set by</dt>
+            <dd class="col-sm-9">
+                <?php if ($keySource === \SLOCloud\Core\KeyFolder::SOURCE_ENVIRONMENT): ?>
+                    The <code>SLOCloud_KEY_PATH</code> environment variable
+                <?php elseif ($keySource === \SLOCloud\Core\KeyFolder::SOURCE_CONFIG): ?>
+                    <code>security.key_path</code> in config.yaml
+                <?php else: ?>
+                    The default location (no <code>security.key_path</code> in config.yaml)
+                <?php endif; ?>
+            </dd>
+        </dl>
+        <?php if ($keyInWebRoot): ?>
+            <div class="alert alert-danger py-2 mb-3">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                The key file is inside the web root, where only the web server's deny rules protect it. Move it to a folder outside the web root.
+            </div>
+        <?php endif; ?>
+        <?php if ($keyEnvironmentPath !== ''): ?>
+            <div class="alert alert-info py-2 mb-3">
+                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                The <code>SLOCloud_KEY_PATH</code> environment variable overrides config.yaml, so the folder cannot be moved here.
+                Move the file on the server and update that variable instead.
+            </div>
+        <?php endif; ?>
+        <p class="text-muted mb-3">
+            Moving copies key.yaml and its key rotation backups to the new folder, checks the copies,
+            saves the new location as <code>security.key_path</code> in config.yaml, confirms SLO Cloud loads the key from there,
+            and only then deletes the old copies. If any step fails, everything is left as it was.
+            <strong>Back up key.yaml and config.yaml first.</strong>
+        </p>
+        <?php if ($keyMoveAllowed && !MAINTENANCE_MODE): ?>
+            <div class="alert alert-warning py-2 mb-3">
+                <i class="fas fa-tools" aria-hidden="true"></i>
+                Moving the keys folder requires Maintenance Mode. You can check a folder now; enable Maintenance Mode and save the configuration to move.
+            </div>
+        <?php endif; ?>
+        <div class="mb-3">
+            <label for="keyFolderTarget" class="form-label">New folder</label>
+            <input type="text" class="form-control" id="keyFolderTarget" autocomplete="off" spellcheck="false"
+                   placeholder="<?= htmlspecialchars($keyFolderExample) ?>" aria-describedby="keyFolderTarget-help"
+                   <?= $keyMoveAllowed ? '' : 'disabled' ?>>
+            <small class="form-text text-muted" id="keyFolderTarget-help">
+                Full path of a folder outside the web root. The folder must already exist, be empty of key files, and allow only
+                <?= PHP_OS_FAMILY === 'Windows'
+                    ? 'Administrators, SYSTEM and the application pool (modify access)'
+                    : 'the web server account (for example <code>chmod 700</code>)' ?>.
+            </small>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-primary" onclick="keyFolderAction('check')"
+                    <?= $keyMoveAllowed ? '' : 'disabled aria-disabled="true"' ?>>
+                <i class="fas fa-clipboard-check" aria-hidden="true"></i> Check Folder
+            </button>
+            <button type="button" class="btn btn-warning" onclick="keyFolderAction('move')"
+                    <?= $keyMoveAllowed && MAINTENANCE_MODE ? '' : 'disabled aria-disabled="true"' ?>>
+                <i class="fas fa-truck-moving" aria-hidden="true"></i> Move Keys Folder
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Key Rotation Section -->
 <div class="card mb-3">
     <div class="card-header">
@@ -324,6 +304,12 @@ $theme->showHeader($context);
             This should be done periodically as a security best practice.
             <strong>Always back up key.yaml and config.yaml before rotating keys.</strong>
         </p>
+        <?php if (!MAINTENANCE_MODE): ?>
+            <div class="alert alert-warning py-2 mb-3">
+                <i class="fas fa-tools" aria-hidden="true"></i>
+                Key rotation requires Maintenance Mode. Enable it and save the configuration first.
+            </div>
+        <?php endif; ?>
         <div class="row g-3">
             <div class="col-lg-4">
                 <div class="card h-100 border-warning">
@@ -334,7 +320,8 @@ $theme->showHeader($context);
                             <code>config.yaml</code>. Rotates <code>encryption_key</code> in key.yaml
                             and re-encrypts all <code>ENC:</code> values in config.yaml.
                         </p>
-                        <button type="button" class="btn btn-warning mt-auto align-self-start" onclick="rotateKey('config')">
+                        <button type="button" class="btn btn-warning mt-auto align-self-start" onclick="rotateKey('config')"
+                                <?= MAINTENANCE_MODE ? '' : 'disabled aria-disabled="true"' ?>>
                             <i class="fas fa-sync-alt"></i> Rotate Config Key
                         </button>
                     </div>
@@ -349,7 +336,8 @@ $theme->showHeader($context);
                             Rotates <code>student_encryption_key</code> in key.yaml and re-encrypts
                             all student records in the database.
                         </p>
-                        <button type="button" class="btn btn-danger mt-auto align-self-start" onclick="rotateKey('student')">
+                        <button type="button" class="btn btn-danger mt-auto align-self-start" onclick="rotateKey('student')"
+                                <?= MAINTENANCE_MODE ? '' : 'disabled aria-disabled="true"' ?>>
                             <i class="fas fa-sync-alt"></i> Rotate Student Key
                         </button>
                     </div>
@@ -377,12 +365,6 @@ $theme->showHeader($context);
                             <i class="fas fa-sync-alt"></i>
                             <?= $lookupKeyConfigured ? 'Rotate Lookup Key' : 'Create Lookup Key' ?>
                         </button>
-                        <?php if (!MAINTENANCE_MODE): ?>
-                            <div class="form-text text-warning mt-2">
-                                <i class="fas fa-tools" aria-hidden="true"></i>
-                                Enable Maintenance Mode and save the configuration first.
-                            </div>
-                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -403,9 +385,9 @@ $theme->showHeader($context);
                 <div id="rotationSteps" class="list-group list-group-flush mb-3" style="font-size: 0.9em;"></div>
                 <div id="rotationSpinner" class="text-center py-3">
                     <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Rotating key...</span>
+                        <span class="visually-hidden" id="rotationSpinnerLabel">Working...</span>
                     </div>
-                    <p class="mt-2 text-muted mb-0">Rotating key, please wait&hellip;</p>
+                    <p class="mt-2 text-muted mb-0" id="rotationSpinnerText">Rotating key, please wait&hellip;</p>
                 </div>
                 <div id="rotationResult" style="display: none;"></div>
             </div>
@@ -428,63 +410,63 @@ $theme->showHeader($context);
         return d.innerHTML;
     }
 
-    window.rotateKey = function (keyType) {
-        var labels = {
-            config:  'Config Encryption Key',
-            student: 'Student Data Key',
-            lookup:  'Student Lookup Key'
-        };
-        var warnings = {
-            config:  'This will re-encrypt all sensitive values in config.yaml with a new key.',
-            student: 'This will re-encrypt ALL student records in the database.\nThis cannot be undone once started.',
-            lookup:  'This will decrypt every student ID and replace every indexed lookup hash.\nMaintenance Mode must remain enabled until the operation finishes.'
-        };
+    var operationUrls = {
+        rotate: '<?= htmlspecialchars(BASE_URL) ?>api/rotate_key.php',
+        folder: '<?= htmlspecialchars(BASE_URL) ?>api/move_key_folder.php'
+    };
 
-        var label = labels[keyType] || keyType;
-
-        if (!confirm('Rotate ' + label + '?\n\n' + warnings[keyType] + '\n\nEnsure you have a backup of key.yaml and config.yaml before proceeding.')) {
-            return;
-        }
-
-        // Reset modal
+    // Shows a key operation's steps in the progress dialog.
+    // text: {busy, spinner, success, failure, failedTitle, successTitle}
+    function runKeyOperation(url, fields, text, onSuccess) {
         document.getElementById('rotationSteps').innerHTML    = '';
         document.getElementById('rotationSpinner').style.display = '';
+        document.getElementById('rotationSpinnerText').textContent = text.spinner;
+        document.getElementById('rotationSpinnerLabel').textContent = text.spinner;
         document.getElementById('rotationResult').style.display  = 'none';
         document.getElementById('rotationResult').innerHTML       = '';
         document.getElementById('rotationCloseBtn').disabled      = true;
 
         var titleEl = document.getElementById('rotationModalLabel');
-        titleEl.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Rotating ' + escHtml(label) + '&hellip;';
+        titleEl.innerHTML = '<i class="fas fa-sync-alt fa-spin" aria-hidden="true"></i> ' + escHtml(text.busy) + '&hellip;';
 
-        var modal = new bootstrap.Modal(document.getElementById('rotationModal'));
+        var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('rotationModal'));
         modal.show();
 
-        var csrfToken = (document.querySelector('input[name="csrf_token"]') || {}).value || '';
-
         var formData = new FormData();
-        formData.append('csrf_token', csrfToken);
-        formData.append('key_type',   keyType);
+        formData.append('csrf_token', (document.querySelector('input[name="csrf_token"]') || {}).value || '');
+        Object.keys(fields).forEach(function (name) { formData.append(name, fields[name]); });
 
-        fetch('<?= htmlspecialchars(BASE_URL) ?>api/rotate_key.php', {
+        fetch(url, {
             method:      'POST',
             body:        formData,
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            headers:     { Accept: 'application/json' }
         })
         .then(function (response) {
-            if (!response.ok) {
+            // Refusals (expired form, maintenance mode off) carry their steps as JSON.
+            return response.json().catch(function () {
                 throw new Error('Server returned HTTP ' + response.status);
-            }
-            return response.json();
+            }).then(function (data) {
+                if (response.status === 401 && data.error === 'session_ended' && data.login_url) {
+                    window.location.href = data.login_url;
+                    throw new Error(data.message || 'Your session has ended.');
+                }
+                if (!response.ok && !data.steps) {
+                    throw new Error(data.message || data.error || ('Server returned HTTP ' + response.status));
+                }
+                return data;
+            });
         })
         .then(function (data) {
             document.getElementById('rotationSpinner').style.display = 'none';
 
-            // Render step list
             var stepsHtml = '';
             (data.steps || []).forEach(function (step) {
                 var icon = step.status === 'ok'
                     ? '<span class="text-success fw-bold font-monospace">[OK]&nbsp;&nbsp;</span>'
-                    : '<span class="text-danger fw-bold font-monospace">[FAIL]</span>';
+                    : step.status === 'warn'
+                        ? '<span class="text-warning-emphasis fw-bold font-monospace">[WARN]</span>'
+                        : '<span class="text-danger fw-bold font-monospace">[FAIL]</span>';
                 stepsHtml +=
                     '<div class="list-group-item px-2 py-1">' +
                     '<span class="me-2">' + icon + '</span>' +
@@ -494,23 +476,22 @@ $theme->showHeader($context);
             });
             document.getElementById('rotationSteps').innerHTML = stepsHtml;
 
-            // Render result banner
             var resultDiv = document.getElementById('rotationResult');
             resultDiv.style.display = '';
             if (data.success) {
                 resultDiv.innerHTML =
-                    '<div class="alert alert-success mb-0">' +
-                    '<i class="fas fa-check-circle"></i> <strong>Success!</strong> ' +
-                    escHtml(label) + ' rotated successfully.' +
+                    '<div class="alert alert-success mb-0" role="status">' +
+                    '<i class="fas fa-check-circle" aria-hidden="true"></i> <strong>Success!</strong> ' + escHtml(text.success) +
                     '</div>';
-                titleEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> ' + escHtml(label) + ' Rotated';
+                titleEl.innerHTML = '<i class="fas fa-check-circle text-success" aria-hidden="true"></i> ' + escHtml(text.successTitle);
+                if (onSuccess) onSuccess();
             } else {
                 resultDiv.innerHTML =
-                    '<div class="alert alert-danger mb-0">' +
-                    '<i class="fas fa-exclamation-triangle"></i> <strong>Rotation failed.</strong> ' +
-                    'Review the steps above. Configuration was not permanently changed (see step details for exceptions).' +
+                    '<div class="alert alert-danger mb-0" role="alert">' +
+                    '<i class="fas fa-exclamation-triangle" aria-hidden="true"></i> <strong>' + escHtml(text.failedTitle) + '.</strong> ' +
+                    escHtml(text.failure) +
                     '</div>';
-                titleEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Rotation Failed';
+                titleEl.innerHTML = '<i class="fas fa-times-circle text-danger" aria-hidden="true"></i> ' + escHtml(text.failedTitle);
             }
             document.getElementById('rotationCloseBtn').disabled = false;
         })
@@ -519,13 +500,73 @@ $theme->showHeader($context);
             var resultDiv = document.getElementById('rotationResult');
             resultDiv.style.display = '';
             resultDiv.innerHTML =
-                '<div class="alert alert-danger mb-0">' +
-                '<i class="fas fa-exclamation-triangle"></i> <strong>Request failed:</strong> ' +
+                '<div class="alert alert-danger mb-0" role="alert">' +
+                '<i class="fas fa-exclamation-triangle" aria-hidden="true"></i> <strong>Request failed:</strong> ' +
                 escHtml(err.message) +
                 '</div>';
             document.getElementById('rotationCloseBtn').disabled = false;
-            titleEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Rotation Failed';
+            titleEl.innerHTML = '<i class="fas fa-times-circle text-danger" aria-hidden="true"></i> ' + escHtml(text.failedTitle);
         });
+    }
+
+    window.rotateKey = function (keyType) {
+        var labels = {
+            config:  'Config Encryption Key',
+            student: 'Student Data Key',
+            lookup:  'Student Lookup Key'
+        };
+        var warnings = {
+            config:  'This will re-encrypt all sensitive values in config.yaml with a new key.',
+            student: 'This will re-encrypt ALL student records in the database.\nThis cannot be undone once started.',
+            lookup:  'This will decrypt every student ID and replace every indexed lookup hash.'
+        };
+
+        var label = labels[keyType] || keyType;
+
+        if (!confirm('Rotate ' + label + '?\n\n' + warnings[keyType] + '\nMaintenance Mode must remain enabled until the operation finishes.\n\nEnsure you have a backup of key.yaml and config.yaml before proceeding.')) {
+            return;
+        }
+
+        runKeyOperation(operationUrls.rotate, { key_type: keyType }, {
+            busy:         'Rotating ' + label,
+            spinner:      'Rotating key, please wait...',
+            success:      label + ' rotated successfully.',
+            successTitle: label + ' Rotated',
+            failedTitle:  'Rotation failed',
+            failure:      'Review the steps above. Configuration was not permanently changed (see step details for exceptions).'
+        });
+    };
+
+    window.keyFolderAction = function (action) {
+        var input = document.getElementById('keyFolderTarget');
+        var folder = input.value.trim();
+        if (folder === '') {
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+            return;
+        }
+        input.removeAttribute('aria-invalid');
+
+        if (action === 'move' && !confirm('Move the encryption keys to\n' + folder + '?\n\n' +
+                'The old copies are deleted once SLO Cloud loads the key from the new folder.\n' +
+                'Maintenance Mode must remain enabled until the move finishes.\n\n' +
+                'Ensure you have a backup of key.yaml and config.yaml before proceeding.')) {
+            return;
+        }
+
+        var moving = action === 'move';
+        runKeyOperation(operationUrls.folder, { action: action, folder: folder }, {
+            busy:         moving ? 'Moving keys folder' : 'Checking folder',
+            spinner:      moving ? 'Moving the keys, please wait...' : 'Checking the folder, please wait...',
+            success:      moving ? 'SLO Cloud now loads its keys from the new folder.' : 'The folder can hold the keys. Nothing was changed.',
+            successTitle: moving ? 'Keys Folder Moved' : 'Folder Ready',
+            failedTitle:  moving ? 'Move failed' : 'Folder not ready',
+            failure:      moving ? 'Review the steps above. Unless a step says otherwise, everything was left as it was.' : 'Review the steps above. Nothing was changed.'
+        }, moving ? function () {
+            document.getElementById('rotationModal').addEventListener('hidden.bs.modal', function () {
+                window.location.reload();
+            }, { once: true });
+        } : null);
     };
 }());
 </script>

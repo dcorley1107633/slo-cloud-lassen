@@ -306,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF validation
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     $action = $_POST['action'] ?? '';
@@ -721,7 +721,7 @@ if ($selectedSectionPk > 0 && $selectedTermCode && $selectedSloId > 0) {
 
 // Get methods only where section, term, course, and SLO still form an authorized chain.
 $sectionMethods = [];
-if (!empty($selectedSectionIds) && $selectedTermCode) {
+if ($selectedSectionPk > 0 && $selectedTermCode) {
     $methodQuery = "
         SELECT m.student_learning_outcome_fk, m.assessment_method, m.improvement_strategies
         FROM {$dbPrefix}section_slo_methods m
@@ -746,7 +746,7 @@ if (!empty($selectedSectionIds) && $selectedTermCode) {
 $currentAssessmentMethod = '';
 $currentImprovementStrategies = [];
 if ($selectedSloId > 0 && isset($sectionMethods[$selectedSloId])) {
-    $currentAssessmentMethod = $sectionMethods[$selectedSloId]['assessment_method'];
+    $currentAssessmentMethod = (string)($sectionMethods[$selectedSloId]['assessment_method'] ?? '');
     if (!empty($sectionMethods[$selectedSloId]['improvement_strategies'])) {
         $strategiesValue = $sectionMethods[$selectedSloId]['improvement_strategies'];
         // Remove outer pipes from wrapped format (|val1||val2|)

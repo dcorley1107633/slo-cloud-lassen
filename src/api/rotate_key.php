@@ -8,6 +8,7 @@ declare(strict_types=1);
  *
  * SECURITY REQUIREMENTS:
  *   - Active admin session (user with 'admin' role in the database)
+ *   - Maintenance mode enabled (applies to every key type)
  *   - Emergency admin (break-glass, user_id = 0) is explicitly blocked
  *   - Valid CSRF token from the current session
  *   - Exclusive file lock acquired before any write; concurrent requests are rejected
@@ -23,7 +24,7 @@ declare(strict_types=1);
  *   }
  *
  * Config key rotation (steps):
- *   1. Verify admin role
+ *   1. Verify admin role and maintenance mode
  *   2. Acquire exclusive file lock
  *   3. Resolve key.yaml path (respects SLOCloud_KEY_PATH env var)
  *   4. Load and validate current encryption_key
@@ -37,7 +38,7 @@ declare(strict_types=1);
  *  12. Release file lock
  *
  * Student key rotation (steps):
- *   1. Verify admin role
+ *   1. Verify admin role and maintenance mode
  *   2. Acquire exclusive file lock
  *   3. Resolve key.yaml path
  *   4. Load and validate current student_encryption_key
@@ -91,7 +92,7 @@ if (empty($_SESSION['user_id'])) {
 
 if (!empty($_SESSION['is_emergency_admin'])) {
     http_response_code(403);
-    $logger->security('KEY_ROTATION_DENIED', 'Key rotation rejected: emergency admin account not permitted', 0, $actorName, 'warning', true, ['ip' => $clientIp]);
+    $logger->security('KEY_ROTATION_DENIED', 'Key rotation rejected: emergency admin account not permitted', 0, $actorName, 'warning', false, ['ip' => $clientIp]);
     echo json_encode([
         'success' => false,
         'steps'   => [['name' => 'Authenticate', 'status' => 'fail', 'message' => 'Key rotation is not available for the emergency admin account']]
@@ -113,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // ============================================================
 if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
     http_response_code(403);
-    $logger->security('KEY_ROTATION_DENIED', 'Key rotation rejected: invalid CSRF token', $actorId, $actorName, 'warning', true, ['ip' => $clientIp]);
+    $logger->security('KEY_ROTATION_DENIED', 'Key rotation rejected: invalid CSRF token', $actorId, $actorName, 'warning', false, ['ip' => $clientIp]);
     echo json_encode([
         'success' => false,
         'steps'   => [['name' => 'CSRF check', 'status' => 'fail', 'message' => 'Invalid CSRF token']]
@@ -161,7 +162,7 @@ try {
 
 if (!$isAdmin) {
     http_response_code(403);
-    $logger->security('KEY_ROTATION_DENIED', 'Key rotation rejected: insufficient role (admin required)', $actorId, $actorName, 'warning', true, ['ip' => $clientIp]);
+    $logger->security('KEY_ROTATION_DENIED', 'Key rotation rejected: insufficient role (admin required)', $actorId, $actorName, 'warning', false, ['ip' => $clientIp]);
     echo json_encode([
         'success' => false,
         'steps'   => [['name' => 'Verify role', 'status' => 'fail', 'message' => 'Admin role required to rotate encryption keys']]
@@ -169,19 +170,18 @@ if (!$isAdmin) {
     exit;
 }
 
-// Lookup hashes must all change as one logical unit. Maintenance mode keeps
-// imports and manual student changes out of the old-key/new-key transition.
-// Unlike encryption-key rotation, this operation changes the value used to
-// decide whether an incoming student already exists.
-if ($keyType === 'lookup' && !MAINTENANCE_MODE) {
+// Every rotation rewrites stored data and key.yaml as one logical unit.
+// Maintenance mode keeps users, imports, and manual student changes out of
+// the old-key/new-key transition.
+if (!MAINTENANCE_MODE) {
     http_response_code(409);
-    $logger->security('KEY_ROTATION_DENIED', 'Student lookup key rotation rejected: maintenance mode is off', $actorId, $actorName, 'warning', true, ['ip' => $clientIp]);
+    $logger->security('KEY_ROTATION_DENIED', "Key rotation ({$keyType}) rejected: maintenance mode is off", $actorId, $actorName, 'warning', false, ['ip' => $clientIp]);
     echo json_encode([
         'success' => false,
         'steps'   => [[
             'name' => 'Verify maintenance mode',
             'status' => 'fail',
-            'message' => 'Enable Maintenance Mode in configuration before creating or rotating the student lookup key'
+            'message' => 'Enable Maintenance Mode in configuration before rotating encryption keys'
         ]]
     ]);
     exit;
@@ -199,26 +199,13 @@ $addStep = function (string $name, string $status, string $message) use (&$steps
 };
 
 /**
- * Resolve key.yaml path, mirroring Config::loadMasterKey() search order:
- *   1. SLOCloud_KEY_PATH environment variable
- *   2. src/config/key.yaml (same dir as config.yaml)
- *   3. One directory above src/config/ (outside web root)
+ * Resolve key.yaml path using the same search order the application reads it
+ * with (Config::keyPathCandidates()).
  *
  * @return string|null Resolved absolute path, or null if not found
  */
-$resolveKeyPath = function (): ?string {
-    $candidates = [];
-
-    $envPath = getenv('SLOCloud_KEY_PATH');
-    if ($envPath !== false && $envPath !== '') {
-        $candidates[] = $envPath;
-    }
-
-    $configDir   = __DIR__ . '/../config';
-    $candidates[] = $configDir . '/key.yaml';
-    $candidates[] = dirname($configDir) . '/key.yaml';
-
-    foreach ($candidates as $path) {
+$resolveKeyPath = function () use ($config): ?string {
+    foreach ($config->keyPathCandidates() as $path) {
         if (file_exists($path)) {
             return $path;
         }
@@ -262,6 +249,11 @@ $backupDir  = __DIR__ . '/../config/backups';
  */
 $backupZipName = '';
 $createBackup  = function () use ($backupDir, &$keyFile, $configFile, $logger, $actorId, $clientIp, &$backupZipName): ?string {
+    // Backups hold a copy of the keys, so they stay beside key.yaml: outside
+    // the web root whenever the key is.
+    if (is_string($keyFile) && $keyFile !== '') {
+        $backupDir = dirname($keyFile) . '/backups';
+    }
     if (!is_dir($backupDir) && !mkdir($backupDir, 0700, true)) {
         return 'Could not create backup directory - check permissions';
     }
@@ -402,17 +394,24 @@ if ($keyType === 'config') {
     try {
         $oldEncryption = new \SLOCloud\Core\Encryption($oldConfigKey);
 
-        preg_match_all("/'ENC:([^']+)'/", $configContent, $matches, PREG_SET_ORDER);
+        // yaml_emit (setup, System > Configuration) writes ENC values unquoted;
+        // hand-edited files may quote them. Matching only 'ENC:...' found nothing
+        // in an emitted file, wrote the new key anyway, and left every encrypted
+        // setting undecryptable.
+        preg_match_all('/([\'"]?)ENC:([A-Za-z0-9+\/=]+)\1/', $configContent, $matches, PREG_SET_ORDER);
 
         $decrypted = [];
         foreach ($matches as $match) {
-            $fullMatch = $match[0]; // 'ENC:...'
-            $encValue  = $match[1]; // base64 payload
+            $fullMatch = $match[0]; // ENC:... with its quotes, if any
+            $encValue  = $match[2]; // base64 payload
             $plaintext = $oldEncryption->decrypt($encValue);
-            $decrypted[] = ['original' => $fullMatch, 'plaintext' => $plaintext];
+            $decrypted[] = ['original' => $fullMatch, 'quote' => $match[1], 'plaintext' => $plaintext];
         }
 
         $count = count($decrypted);
+        if ($count !== substr_count($configContent, 'ENC:')) {
+            throw new \RuntimeException("Found $count readable ENC values but " . substr_count($configContent, 'ENC:') . ' ENC markers in config.yaml');
+        }
         $addStep('Decrypt encrypted values', 'ok', "Decrypted $count encrypted value(s) successfully");
     } catch (\Exception $e) {
         // Log full detail server-side; return generic message to client
@@ -443,7 +442,7 @@ if ($keyType === 'config') {
 
         foreach ($decrypted as $item) {
             $newEncValue     = $newEncryption->encrypt($item['plaintext']);
-            $newQuotedValue  = "'ENC:" . $newEncValue . "'";
+            $newQuotedValue  = $item['quote'] . 'ENC:' . $newEncValue . $item['quote'];
             $newConfigContent = str_replace($item['original'], $newQuotedValue, $newConfigContent);
         }
 

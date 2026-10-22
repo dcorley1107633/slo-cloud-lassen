@@ -428,9 +428,12 @@ $theme->showHeader($context);
                     </li>
                 </ul>
             </div>
-            <div class="card-footer">
+            <div class="card-footer d-flex flex-wrap gap-2">
                 <a href="<?= BASE_URL ?>administration/config.php" class="btn btn-outline-secondary btn-sm">
                     <i class="fas fa-gear me-2" aria-hidden="true"></i>Open LTI Configuration
+                </a>
+                <a href="<?= BASE_URL ?>administration/canvas_deploy.php" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-cloud-arrow-up me-2" aria-hidden="true"></i>Deploy to Canvas courses
                 </a>
             </div>
         </div>

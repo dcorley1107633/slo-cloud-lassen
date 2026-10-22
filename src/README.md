@@ -70,7 +70,7 @@ See [config/README.md](config/README.md) for the full two-file encryption archit
 
 ## Key Rotation
 
-Encryption keys can be rotated from **Administration > System > Configuration** without filesystem access. The config key and student data key support live rotation. The student lookup key can be created on legacy installations or rotated from the same panel while Maintenance Mode is enabled; student IDs are decrypted and rehashed without changing the encrypted student data.
+Encryption keys can be rotated from **Administration > System > Configuration** without filesystem access. All key rotations require Maintenance Mode to be enabled and saved first. The student lookup key can also be created on legacy installations from the same panel; student IDs are decrypted and rehashed without changing the encrypted student data.
 
 ## Additional Documentation
 

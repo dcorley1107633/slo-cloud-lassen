@@ -65,13 +65,9 @@ $_SESSION['user_email']    = $user['email'];
 $_SESSION['user_name']     = $user['full_name'];
 $_SESSION['logged_in_at']  = time();
 $_SESSION['last_activity'] = time();
-$_SESSION['authenticated_at'] = time();
 
-$logger->info('LTI auto-login used', [
-    'user_id' => $user['users_pk'],
-    'email'   => $user['email'],
-    'ip'      => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
-]);
+$logger->security(\SLOCloud\Core\Logger::EVENT_LOGIN_SUCCESS, 'Signed in from the LMS (LTI)',
+    (int)$user['users_pk'], (string)$user['email'], 'info', false, ['method' => 'lti']);
 
 header('Location: ' . BASE_URL . 'administration/');
 exit;

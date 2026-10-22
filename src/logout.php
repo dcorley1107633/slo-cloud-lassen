@@ -28,14 +28,18 @@ if ($submittedToken === '' || !hash_equals((string)($_SESSION['csrf_token'] ?? '
     exit;
 }
 
-// Log the logout if user was logged in
+// Record the logout on the Activity Log if a user was logged in
 if (isset($_SESSION['user_id'])) {
-    Logger::getInstance()->info('User logged out', [
-        'user_id' => $_SESSION['user_id'],
-        'email' => $_SESSION['user_email'] ?? 'unknown',
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        'session_duration' => isset($_SESSION['logged_in_at']) ? (time() - $_SESSION['logged_in_at']) : 0
-    ]);
+    $userId = (int)$_SESSION['user_id'];
+    Logger::getInstance()->security(
+        Logger::EVENT_LOGOUT,
+        'Signed out',
+        $userId > 0 ? $userId : null,
+        (string)($_SESSION['user_email'] ?? ''),
+        'info',
+        false,
+        ['reason' => 'user_logout']
+    );
 }
 
 // Destroy session

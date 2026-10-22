@@ -27,6 +27,115 @@ $errorMessage = '';
 $importStats = [];
 $activeFile = 1; // Default to File 1 (Term)
 
+/** Import duration in words, e.g. "0.4 seconds", "38 seconds", "2 minutes 5 seconds". */
+function formatImportElapsed(float $seconds): string
+{
+    if ($seconds < 10) {
+        return number_format($seconds, 1) . ' seconds';
+    }
+    $total = (int)round($seconds);
+    $hours = intdiv($total, 3600);
+    $minutes = intdiv($total % 3600, 60);
+    $secs = $total % 60;
+    $parts = [];
+    if ($hours > 0) {
+        $parts[] = $hours . ($hours === 1 ? ' hour' : ' hours');
+    }
+    if ($minutes > 0) {
+        $parts[] = $minutes . ($minutes === 1 ? ' minute' : ' minutes');
+    }
+    if ($secs > 0 || $parts === []) {
+        $parts[] = $secs . ($secs === 1 ? ' second' : ' seconds');
+    }
+    return implode(' ', $parts);
+}
+
+/**
+ * Recent import timings, kept on this server in <data>/var/import_timings.json
+ * so the progress window can say how long an import usually takes.
+ * Shape: {"<file_num>": [{"bytes": int, "rows": int, "seconds": float, "at": int}, ...]}
+ */
+const IMPORT_TIMING_SAMPLES = 20;
+
+function importTimingsPath(): string
+{
+    return \SLOCloud\Core\Security::dataRoot(dirname(__DIR__)) . '/var/import_timings.json';
+}
+
+function readImportTimings(): array
+{
+    $path = importTimingsPath();
+    if (!is_file($path)) {
+        return [];
+    }
+    $decoded = json_decode((string)@file_get_contents($path), true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+/** Adds one successful import's timing; a timing that cannot be saved never fails the import. */
+function recordImportTiming(int $fileNum, int $bytes, int $rows, float $seconds): void
+{
+    try {
+        $path = importTimingsPath();
+        $dir = dirname($path);
+        if (!is_dir($dir) && !@mkdir($dir, 0700, true)) {
+            return;
+        }
+        $handle = @fopen($path, 'c+');
+        if ($handle === false) {
+            return;
+        }
+        if (flock($handle, LOCK_EX)) {
+            $decoded = json_decode((string)stream_get_contents($handle), true);
+            $timings = is_array($decoded) ? $decoded : [];
+            $key = (string)$fileNum;
+            $samples = is_array($timings[$key] ?? null) ? $timings[$key] : [];
+            $samples[] = ['bytes' => $bytes, 'rows' => $rows, 'seconds' => round($seconds, 3), 'at' => time()];
+            $timings[$key] = array_slice($samples, -IMPORT_TIMING_SAMPLES);
+            ftruncate($handle, 0);
+            rewind($handle);
+            fwrite($handle, (string)json_encode($timings));
+            fflush($handle);
+            flock($handle, LOCK_UN);
+        }
+        fclose($handle);
+    } catch (\Throwable $e) {
+        error_log('Import timing not recorded: ' . $e->getMessage());
+    }
+}
+
+/** Per file number: seconds per byte across recent imports, for the progress window's estimate. */
+function importTimingEstimates(): array
+{
+    $estimates = [];
+    foreach (readImportTimings() as $fileNum => $samples) {
+        if (!is_array($samples)) {
+            continue;
+        }
+        $bytes = 0;
+        $seconds = 0.0;
+        $count = 0;
+        foreach ($samples as $sample) {
+            $b = (int)($sample['bytes'] ?? 0);
+            $t = (float)($sample['seconds'] ?? 0);
+            if ($b <= 0 || $t <= 0) {
+                continue;
+            }
+            $bytes += $b;
+            $seconds += $t;
+            $count++;
+        }
+        if ($count === 0) {
+            continue;
+        }
+        $estimates[(int)$fileNum] = [
+            'secondsPerByte' => $seconds / $bytes,
+            'samples' => $count,
+        ];
+    }
+    return $estimates;
+}
+
 // Initialize student encryption
 $studentEncryption = new StudentEncryption($config);
 
@@ -449,9 +558,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF validation
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
+    $importStartedAt = microtime(true);
     $fileNum = (int)($_POST['file_num'] ?? 1);
     $activeFile = $fileNum;
     $autoCreateParents = isset($_POST['auto_create_parents']) && $_POST['auto_create_parents'] === '1';
@@ -1476,6 +1586,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $errorMessage = 'Please select a valid CSV file';
     }
+
+    $importElapsed = microtime(true) - $importStartedAt;
+    $importStats['elapsed_seconds'] = round($importElapsed, 3);
+    if ($successMessage !== '' && $errorMessage === '') {
+        recordImportTiming(
+            $fileNum,
+            (int)($_FILES['csv_upload']['size'] ?? 0),
+            (int)($importStats['imported'] ?? 0) + (int)($importStats['skipped'] ?? 0),
+            $importElapsed
+        );
+    }
+    if ($successMessage !== '') {
+        $successMessage .= ' (took ' . formatImportElapsed($importElapsed) . ')';
+    } elseif ($errorMessage !== '' && $importElapsed >= 1) {
+        $errorMessage .= ' (stopped after ' . formatImportElapsed($importElapsed) . ')';
+    }
 }
 
 // Generate CSRF token
@@ -1520,6 +1646,42 @@ $theme->showHeader($context);
         font-weight: bold;
         margin-right: 1rem;
     }
+    /* Import progress window */
+    .import-progress .modal-content { border-radius: 1rem; }
+    .import-timer { position: relative; width: 7.5rem; height: 7.5rem; }
+    .import-timer::before {
+        content: ""; position: absolute; inset: 0; border-radius: 50%;
+        border: .4rem solid var(--bs-secondary-bg, #e9ecef);
+    }
+    .import-timer-ring { position: absolute; inset: 0; width: 100%; height: 100%; border-width: .4rem; color: var(--bs-primary); }
+    .import-timer[data-state="failed"] .import-timer-ring { display: none; }
+    .import-timer[data-state="failed"]::before { border-color: var(--bs-danger); }
+    .import-timer-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .import-timer-value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .import-timer-label { font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--bs-secondary-color, #495057); }
+    .import-file { color: var(--bs-secondary-color, #495057); word-break: break-all; }
+    .import-plan { background: var(--bs-tertiary-bg, #f8f9fa); border-radius: .75rem; padding: .875rem 1rem; }
+    .import-plan-heading { font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--bs-secondary-color, #495057); margin-bottom: .5rem; }
+    .import-plan li { display: flex; gap: .5rem; font-size: .875rem; line-height: 1.4; padding: .15rem 0; }
+    .import-plan li .bi { color: var(--bs-primary); flex-shrink: 0; margin-top: .1rem; }
+    .import-info-button { color: var(--bs-secondary-color, #495057); font-size: 1rem; line-height: 1; text-decoration: none; }
+    .import-info-button:hover, .import-info-button:focus-visible, .import-info-button[aria-expanded="true"] { color: var(--bs-primary); }
+    .import-info-popover { --bs-popover-max-width: 22rem; }
+    .import-info-popover .popover-header { font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--bs-secondary-color, #495057); background: var(--bs-tertiary-bg, #f8f9fa); }
+    .import-plan-list li { display: flex; gap: .5rem; font-size: .875rem; line-height: 1.4; padding: .15rem 0; }
+    .import-plan-list li .bi { color: var(--bs-primary); flex-shrink: 0; margin-top: .1rem; }
+    .import-steps li { display: flex; align-items: center; gap: .75rem; padding: .4rem 0; }
+    .import-steps li + li { border-top: 1px solid var(--bs-border-color-translucent, rgba(0,0,0,.1)); }
+    .import-step-icon { width: 1.25rem; display: inline-flex; justify-content: center; flex-shrink: 0; }
+    .import-step-label { font-weight: 500; }
+    .import-step-detail { margin-left: auto; font-size: .875rem; font-variant-numeric: tabular-nums; color: var(--bs-secondary-color, #495057); }
+    .import-steps li[data-state="pending"] { color: var(--bs-secondary-color, #495057); }
+    .import-steps li[data-state="active"] .import-step-icon { color: var(--bs-primary); }
+    .import-steps li[data-state="done"] .import-step-icon { color: var(--bs-success); }
+    .import-steps li[data-state="failed"] .import-step-icon { color: var(--bs-danger); }
+    .import-bar { height: .5rem; border-radius: 1rem; }
+    .import-bar .progress-bar { transition: width .6s ease; }
+    .import-estimate, .import-hint { color: var(--bs-secondary-color, #495057); }
 </style>
 
 <div class="app-content">
@@ -1568,7 +1730,7 @@ $theme->showHeader($context);
                     <li>Import entities independently</li>
                     <li>Update specific entities without re-importing entire hierarchy</li>
                 </ul>
-                <p><strong>Sample Files:</strong> <code>data/normalized_FILE_01_term.csv</code> through <code>normalized_FILE_12_xlist.csv</code></p>
+                <p><strong>Sample Files:</strong> Each file below has a <em>Download sample</em> link (<code>normalized_FILE_01_term.csv</code> through <code>normalized_FILE_12_xlist.csv</code>) showing the expected columns.</p>
                 <p><strong>Documentation:</strong> See <code>docs/term_centric_schema.yaml</code> for complete field specifications</p>
                 <div class="alert alert-info mb-0" role="note">
                     <i class="bi bi-copy me-2" aria-hidden="true"></i>
@@ -1577,6 +1739,76 @@ $theme->showHeader($context);
             </div>
         </div>
         
+<?php
+// Plain-language summary of what each file's import does, shown in each card's
+// info hint and in the progress window while the import runs.
+// 'parents' names everything "Auto-create missing parent records" can add for
+// that file, including the parents' own parents (a new course also gets its
+// department and term; a new PSLO gets its program, department and term).
+$importPlans = [
+    1 => ['actions' => [
+            'Adds terms that are new',
+            'Updates terms that already exist, matched by term code',
+            'Leaves deactivated terms unchanged and skips their rows',
+        ], 'parents' => null],
+    2 => ['actions' => [
+            'Adds departments that are new',
+            'Updates departments that already exist, matched by term and department code',
+            'Leaves deactivated departments unchanged and skips their rows',
+        ], 'parents' => 'terms'],
+    3 => ['actions' => [
+            'Adds institutional outcomes (ISLOs) that are new',
+            'Updates ISLOs that already exist, matched by term and outcome code',
+            'Leaves deactivated ISLOs unchanged and skips their rows',
+        ], 'parents' => 'terms'],
+    4 => ['actions' => [
+            'Adds programs that are new',
+            'Updates programs that already exist, matched by term and program code',
+            'Leaves deactivated programs unchanged and skips their rows',
+        ], 'parents' => 'terms and departments'],
+    5 => ['actions' => [
+            'Adds program outcomes (PSLOs) that are new and links each one to its ISLO',
+            'Updates PSLOs that already exist, matched by program and outcome code',
+            'Skips rows whose ISLO is not in the term yet (import File 3 first)',
+        ], 'parents' => 'terms, departments and programs'],
+    6 => ['actions' => [
+            'Adds courses that are new',
+            'Updates courses that already exist, matched by term and course number',
+            'Leaves deactivated courses unchanged and skips their rows',
+        ], 'parents' => 'terms and departments'],
+    7 => ['actions' => [
+            'Links each program to its courses',
+            'Keeps links that already exist as they are',
+            'Repairs links from older imports that paired a program and a course from different terms',
+        ], 'parents' => 'terms, departments, programs and courses'],
+    8 => ['actions' => [
+            'Adds course outcomes (CSLOs) that are new',
+            'Updates CSLOs that already exist, matched by course and outcome code',
+            'Leaves deactivated CSLOs unchanged and skips their rows',
+        ], 'parents' => 'terms, departments and courses'],
+    9 => ['actions' => [
+            'Links course outcomes (CSLOs) to program outcomes (PSLOs)',
+            'Links every CSLO in the term that has the outcome code in the row',
+            'Skips rows with no matching CSLO (import File 8 first)',
+        ], 'parents' => 'terms, departments, programs and PSLOs'],
+    10 => ['actions' => [
+            'Adds sections that are new',
+            'Updates sections that already exist, matched by term and CRN',
+            'Leaves deactivated sections unchanged and skips their rows',
+        ], 'parents' => 'terms, departments and courses'],
+    11 => ['actions' => [
+            'Adds students who are new and updates the names of existing students, stored encrypted',
+            'Enrolls each student in the section with the row\'s term and CRN, or updates the existing enrollment',
+            'Skips rows whose section is not there yet (import File 10 first)',
+        ], 'parents' => 'terms'],
+    12 => ['actions' => [
+            'Puts each section, matched by term and CRN, in its cross-list group',
+            'Moves a section that is already cross-listed to the group in the row',
+            'Leaves deactivated cross-listings unchanged and skips their rows',
+        ], 'parents' => 'terms'],
+];
+?>
+
         <!-- File Import Forms -->
         <div class="row">
             <?php
@@ -1603,9 +1835,16 @@ $theme->showHeader($context);
                         <div class="d-flex align-items-start mb-3">
                             <span class="file-number flex-shrink-0"><?= $fileNum ?></span>
                             <div class="flex-grow-1">
-                                <h3 class="h5 mb-1 d-flex align-items-center gap-2">
-                                    <i class="bi bi-<?= $fileInfo['icon'] ?>"></i><?= htmlspecialchars($fileInfo['name']) ?>
-                                </h3>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <h3 class="h5 mb-0 d-flex align-items-center gap-2">
+                                        <i class="bi bi-<?= $fileInfo['icon'] ?>" aria-hidden="true"></i><?= htmlspecialchars($fileInfo['name']) ?>
+                                    </h3>
+                                    <?php if (isset($importPlans[$fileNum])): ?>
+                                    <button type="button" class="btn btn-link import-info-button p-0 ms-auto" data-file-num="<?= $fileNum ?>" aria-label="What the <?= htmlspecialchars($fileInfo['name']) ?> import does" aria-expanded="false">
+                                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
                                 <p class="card-text text-muted small mb-0"><?= htmlspecialchars($fileInfo['desc']) ?></p>
                             </div>
                         </div>
@@ -1618,6 +1857,17 @@ $theme->showHeader($context);
                                 <label for="csv_upload_<?= $fileNum ?>" class="form-label">Upload CSV File <?= $fileNum ?></label>
                                 <input type="file" class="form-control" id="csv_upload_<?= $fileNum ?>" name="csv_upload" accept=".csv" required>
                                 <div class="form-text">Expected: <code>normalized_FILE_<?= sprintf('%02d', $fileNum) ?>_*.csv</code></div>
+                                <?php
+                                $sampleMatches = glob(__DIR__ . '/../assets/sample_data/normalized_FILE_' . sprintf('%02d', $fileNum) . '_*.csv') ?: [];
+                                if ($sampleMatches):
+                                    $sampleName = basename($sampleMatches[0]);
+                                ?>
+                                <div class="form-text">
+                                    <a href="<?= htmlspecialchars(BASE_URL . 'assets/sample_data/' . rawurlencode($sampleName)) ?>" download="<?= htmlspecialchars($sampleName) ?>">
+                                        <i class="bi bi-download me-1" aria-hidden="true"></i>Download sample <?= htmlspecialchars($sampleName) ?>
+                                    </a>
+                                </div>
+                                <?php endif; ?>
                             </div>
                             
                             <?php if ($fileNum > 1): ?>
@@ -1650,52 +1900,448 @@ $theme->showHeader($context);
     </div>
 </div>
 
+<!-- Import progress window: locks the page while an import runs. -->
+<div class="modal fade import-progress" id="importProgressModal" tabindex="-1" aria-labelledby="importProgressTitle" aria-describedby="importProgressFile" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-body px-4 py-4 px-md-5 text-center">
+                <div class="import-timer mx-auto mb-3" id="importTimer" data-state="running">
+                    <div class="spinner-border import-timer-ring" aria-hidden="true"></div>
+                    <div class="import-timer-text">
+                        <span class="import-timer-value" id="importProgressElapsed">0:00</span>
+                        <span class="import-timer-label">Elapsed</span>
+                    </div>
+                </div>
+                <h2 class="modal-title h5 mb-1" id="importProgressTitle">Importing</h2>
+                <p class="import-file small mb-4" id="importProgressFile"></p>
+
+                <div class="import-plan text-start mb-4">
+                    <h3 class="import-plan-heading">What this import does</h3>
+                    <ul class="list-unstyled mb-0" id="importProgressPlan"></ul>
+                </div>
+
+                <ol class="import-steps list-unstyled text-start mb-3">
+                    <li id="importStepUpload" data-state="active">
+                        <span class="import-step-icon" aria-hidden="true"></span>
+                        <span class="import-step-label">Upload file</span>
+                        <span class="import-step-detail" id="importUploadDetail"></span>
+                    </li>
+                    <li id="importStepProcess" data-state="pending">
+                        <span class="import-step-icon" aria-hidden="true"></span>
+                        <span class="import-step-label">Import records</span>
+                        <span class="import-step-detail" id="importProcessDetail"></span>
+                    </li>
+                </ol>
+
+                <div class="progress import-bar mb-2" role="progressbar" aria-label="Import progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="importProgressBar">
+                    <div class="progress-bar" style="width: 0%"></div>
+                </div>
+                <p class="import-estimate small mb-0" id="importProgressEstimate"></p>
+
+                <div class="alert alert-danger text-start mt-3 mb-0 d-none" role="alert" id="importProgressError"></div>
+                <p class="import-hint small mt-3 mb-0" id="importProgressHint"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Keep this tab open. The results appear here when the import finishes.</p>
+                <div class="visually-hidden" role="status" aria-live="polite" id="importProgressStatus"></div>
+            </div>
+            <div class="modal-footer justify-content-center border-0 pt-0 pb-4 d-none" id="importProgressFooter">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const forms = Array.from(document.querySelectorAll('.normalized-import-form'));
-    const importButtons = Array.from(document.querySelectorAll('.import-submit-button'));
-    let importInProgress = false;
+    // Recent timings on this server, per file number (seconds per byte).
+    const timingEstimates = <?= json_encode((object)importTimingEstimates(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+    const importPlans = <?= json_encode($importPlans, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS) ?>;
 
-    importButtons.forEach(function (button) {
-        button.dataset.originalHtml = button.innerHTML;
+    const forms = Array.from(document.querySelectorAll('.normalized-import-form'));
+    const modalEl = document.getElementById('importProgressModal');
+    const timerEl = document.getElementById('importTimer');
+    const elapsedEl = document.getElementById('importProgressElapsed');
+    const titleEl = document.getElementById('importProgressTitle');
+    const fileEl = document.getElementById('importProgressFile');
+    const uploadStep = document.getElementById('importStepUpload');
+    const processStep = document.getElementById('importStepProcess');
+    const uploadDetail = document.getElementById('importUploadDetail');
+    const processDetail = document.getElementById('importProcessDetail');
+    const barWrap = document.getElementById('importProgressBar');
+    const bar = barWrap.querySelector('.progress-bar');
+    const estimateEl = document.getElementById('importProgressEstimate');
+    const errorEl = document.getElementById('importProgressError');
+    const hintEl = document.getElementById('importProgressHint');
+    const statusEl = document.getElementById('importProgressStatus');
+    const footerEl = document.getElementById('importProgressFooter');
+    const planEl = document.getElementById('importProgressPlan');
+    const modal = window.bootstrap ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+
+    const stepIcons = {
+        pending: '<i class="bi bi-circle"></i>',
+        active: '<span class="spinner-border spinner-border-sm"></span>',
+        done: '<i class="bi bi-check-circle-fill"></i>',
+        failed: '<i class="bi bi-x-circle-fill"></i>'
+    };
+
+    let importInProgress = false;
+    let tick = null;
+    let startedAt = 0;
+    let processingStartedAt = 0;
+    let estimateSeconds = 0;
+
+    modalEl.addEventListener('shown.bs.modal', function () { modalEl.removeAttribute('data-opening'); });
+
+    function setStep(step, state) {
+        step.dataset.state = state;
+        step.querySelector('.import-step-icon').innerHTML = stepIcons[state];
+    }
+
+    function setBar(percent, indeterminate) {
+        bar.style.width = percent + '%';
+        bar.classList.toggle('progress-bar-striped', indeterminate);
+        bar.classList.toggle('progress-bar-animated', indeterminate);
+        if (indeterminate) {
+            barWrap.removeAttribute('aria-valuenow');
+        } else {
+            barWrap.setAttribute('aria-valuenow', String(Math.round(percent)));
+        }
+    }
+
+    function clock(totalSeconds) {
+        const total = Math.max(0, Math.floor(totalSeconds));
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const seconds = String(total % 60).padStart(2, '0');
+        return hours > 0 ? hours + ':' + String(minutes).padStart(2, '0') + ':' + seconds : minutes + ':' + seconds;
+    }
+
+    function roughDuration(seconds) {
+        if (seconds < 5) return 'a few seconds';
+        if (seconds < 55) return 'about ' + Math.max(5, Math.round(seconds / 5) * 5) + ' seconds';
+        const minutes = Math.round(seconds / 60);
+        if (minutes < 60) return 'about ' + minutes + (minutes === 1 ? ' minute' : ' minutes');
+        const hours = Math.floor(minutes / 60);
+        const rest = minutes % 60;
+        return 'about ' + hours + (hours === 1 ? ' hour' : ' hours') + (rest ? ' ' + rest + ' minutes' : '');
+    }
+
+    function fileSize(bytes) {
+        if (bytes < 1024) return bytes + (bytes === 1 ? ' byte' : ' bytes');
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function announce(text) {
+        statusEl.textContent = text;
+    }
+
+    function onTick() {
+        const now = Date.now();
+        elapsedEl.textContent = clock((now - startedAt) / 1000);
+        if (!processingStartedAt) {
+            return;
+        }
+        const processing = (now - processingStartedAt) / 1000;
+        if (estimateSeconds > 0) {
+            // Ease toward 95% so the bar never claims to be finished.
+            const ratio = processing / estimateSeconds;
+            setBar(Math.min(95, ratio * 95), false);
+            processDetail.textContent = ratio < 0.9
+                ? roughDuration(estimateSeconds - processing) + ' left'
+                : (ratio < 1.5 ? 'Almost done' : 'Taking longer than usual');
+        } else {
+            processDetail.textContent = clock(processing);
+        }
+    }
+
+    function stopClock() {
+        window.clearInterval(tick);
+        tick = null;
+    }
+
+    // The plan's lines, with the parent-record line following the auto-create box.
+    function planLines(fileNum, autoCreate) {
+        const plan = importPlans[fileNum];
+        if (!plan) {
+            return [];
+        }
+        const lines = plan.actions.slice();
+        if (plan.parents) {
+            lines.push(autoCreate
+                ? 'Creates any ' + plan.parents + ' that rows refer to but are not there yet'
+                : 'Skips rows whose ' + plan.parents + ' are not there yet (auto-create is off)');
+        }
+        return lines;
+    }
+
+    function fillPlanList(list, lines) {
+        list.textContent = '';
+        lines.forEach(function (line) {
+            const item = document.createElement('li');
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-check2';
+            icon.setAttribute('aria-hidden', 'true');
+            item.appendChild(icon);
+            item.appendChild(document.createTextNode(line));
+            list.appendChild(item);
+        });
+    }
+
+    function autoCreateChecked(form) {
+        const input = form ? form.querySelector('input[name="auto_create_parents"]') : null;
+        return !!(input && input.checked);
+    }
+
+    function showPlan(fileNum, autoCreate) {
+        const lines = planLines(fileNum, autoCreate);
+        planEl.parentElement.classList.toggle('d-none', lines.length === 0);
+        fillPlanList(planEl, lines);
+    }
+
+    // Info hint on each card: the same plan, shown before importing.
+    // Opens on hover or keyboard focus, stays open when clicked, and closes
+    // with Escape or a click elsewhere (WCAG 1.4.13).
+    document.querySelectorAll('.import-info-button').forEach(function (button) {
+        if (!window.bootstrap) {
+            return;
+        }
+        const card = button.closest('.card-body');
+        const form = card.querySelector('.normalized-import-form');
+        const fileNum = button.dataset.fileNum;
+        let pinned = false;
+        let hideTimer = null;
+
+        function content() {
+            const wrap = document.createElement('div');
+            const list = document.createElement('ul');
+            list.className = 'list-unstyled mb-0 import-plan-list';
+            fillPlanList(list, planLines(fileNum, autoCreateChecked(form)));
+            wrap.appendChild(list);
+            return wrap;
+        }
+
+        const popover = new bootstrap.Popover(button, {
+            trigger: 'manual',
+            placement: 'auto',
+            html: true,
+            title: 'What this import does',
+            content: content,
+            customClass: 'import-info-popover',
+            container: 'body',
+            // Keep a gap from the screen edge on narrow screens.
+            popperConfig: function (config) {
+                config.modifiers.push({ name: 'preventOverflow', options: { padding: 8 } });
+                return config;
+            }
+        });
+
+        function show() {
+            window.clearTimeout(hideTimer);
+            if (!button.hasAttribute('data-open')) {
+                popover.show();
+            }
+        }
+        function hide() {
+            window.clearTimeout(hideTimer);
+            pinned = false;
+            popover.hide();
+        }
+        function hideSoon() {
+            if (pinned) {
+                return;
+            }
+            window.clearTimeout(hideTimer);
+            hideTimer = window.setTimeout(function () {
+                const tip = popover.tip;
+                if (!pinned && !(tip && tip.matches(':hover')) && document.activeElement !== button) {
+                    popover.hide();
+                }
+            }, 200);
+        }
+
+        button.addEventListener('shown.bs.popover', function () {
+            button.setAttribute('data-open', '');
+            button.setAttribute('aria-expanded', 'true');
+            const tip = popover.tip;
+            if (tip) {
+                button.setAttribute('aria-describedby', tip.id);
+                tip.addEventListener('mouseleave', hideSoon);
+                tip.addEventListener('mouseenter', function () { window.clearTimeout(hideTimer); });
+            }
+        });
+        button.addEventListener('hidden.bs.popover', function () {
+            button.removeAttribute('data-open');
+            button.setAttribute('aria-expanded', 'false');
+            button.removeAttribute('aria-describedby');
+        });
+        button.addEventListener('mouseenter', show);
+        button.addEventListener('mouseleave', hideSoon);
+        button.addEventListener('focus', show);
+        button.addEventListener('blur', hideSoon);
+        button.addEventListener('click', function () {
+            if (pinned) {
+                hide();
+            } else {
+                pinned = true;
+                show();
+            }
+        });
+        button.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                hide();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && button.hasAttribute('data-open')) {
+                hide();
+            }
+        });
+        document.addEventListener('click', function (event) {
+            const tip = popover.tip;
+            if (pinned && !button.contains(event.target) && !(tip && tip.contains(event.target))) {
+                hide();
+            }
+        });
+        // Keep an open hint in step with the auto-create box.
+        const autoCreate = form ? form.querySelector('input[name="auto_create_parents"]') : null;
+        if (autoCreate) {
+            autoCreate.addEventListener('change', function () {
+                if (button.hasAttribute('data-open')) {
+                    popover.setContent({ '.popover-body': content() });
+                }
+            });
+        }
+    });
+
+    function resetWindow(label, file, fileNum) {
+        titleEl.textContent = 'Importing ' + label;
+        fileEl.textContent = file ? file.name + ' · ' + fileSize(file.size) : '';
+        timerEl.dataset.state = 'running';
+        elapsedEl.textContent = '0:00';
+        setStep(uploadStep, 'active');
+        setStep(processStep, 'pending');
+        uploadDetail.textContent = '0%';
+        processDetail.textContent = '';
+        setBar(0, false);
+        errorEl.classList.add('d-none');
+        errorEl.textContent = '';
+        hintEl.classList.remove('d-none');
+        footerEl.classList.add('d-none');
+
+        const history = timingEstimates[fileNum];
+        estimateSeconds = history && file ? history.secondsPerByte * file.size : 0;
+        if (estimateSeconds > 0) {
+            estimateEl.textContent = 'Usually takes ' + roughDuration(estimateSeconds) + ' for a file this size, based on the last '
+                + (history.samples === 1 ? 'import' : history.samples + ' imports') + ' of this file on this server.';
+        } else {
+            estimateEl.textContent = 'This server has no timing history for this file yet. The time will be recorded for next time.';
+        }
+    }
+
+    function showFailure(message) {
+        importInProgress = false;
+        stopClock();
+        timerEl.dataset.state = 'failed';
+        titleEl.textContent = 'Import did not finish';
+        setStep(uploadStep.dataset.state === 'done' ? processStep : uploadStep, 'failed');
+        barWrap.classList.add('d-none');
+        estimateEl.textContent = '';
+        hintEl.classList.add('d-none');
+        errorEl.textContent = message;
+        errorEl.classList.remove('d-none');
+        footerEl.classList.remove('d-none');
+        const closeButton = footerEl.querySelector('button');
+        // A fast failure can arrive before the window finishes opening and takes focus.
+        if (modalEl.classList.contains('show') && !modalEl.hasAttribute('data-opening')) {
+            closeButton.focus();
+        } else {
+            modalEl.addEventListener('shown.bs.modal', function () { closeButton.focus(); }, { once: true });
+        }
+    }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        barWrap.classList.remove('d-none');
+    });
+
+    // Warn before leaving while the server is still importing.
+    window.addEventListener('beforeunload', function (event) {
+        if (importInProgress) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
     });
 
     forms.forEach(function (form) {
         form.addEventListener('submit', function (event) {
+            if (!modal || !window.XMLHttpRequest || !window.FormData) {
+                return; // Fall back to a normal form post.
+            }
+            event.preventDefault();
             if (importInProgress) {
-                event.preventDefault();
                 return;
             }
-
             importInProgress = true;
-            const submittedButton = event.submitter || form.querySelector('.import-submit-button');
 
-            importButtons.forEach(function (button) {
-                button.disabled = true;
-                button.setAttribute('aria-disabled', 'true');
+            const heading = form.closest('.card-body').querySelector('h3');
+            const label = heading ? heading.textContent.trim() : 'file';
+            const fileInput = form.querySelector('input[type="file"]');
+            const file = fileInput && fileInput.files.length ? fileInput.files[0] : null;
+            const fileNum = form.querySelector('input[name="file_num"]').value;
+
+            resetWindow(label, file, fileNum);
+            showPlan(fileNum, autoCreateChecked(form));
+            startedAt = Date.now();
+            processingStartedAt = 0;
+            tick = window.setInterval(onTick, 1000);
+            modalEl.setAttribute('data-opening', '');
+            modal.show();
+            announce('Uploading ' + label + ' file.');
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', form.getAttribute('action') || window.location.href);
+
+            xhr.upload.addEventListener('progress', function (e) {
+                if (e.lengthComputable && !processingStartedAt) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    uploadDetail.textContent = percent + '%';
+                    setBar(percent, false);
+                }
+            });
+            xhr.upload.addEventListener('load', function () {
+                processingStartedAt = Date.now();
+                setStep(uploadStep, 'done');
+                uploadDetail.textContent = clock((processingStartedAt - startedAt) / 1000);
+                setStep(processStep, 'active');
+                if (estimateSeconds > 0) {
+                    setBar(0, false);
+                } else {
+                    setBar(100, true);
+                }
+                onTick();
+                announce('Upload complete. Importing records.');
             });
 
-            if (submittedButton) {
-                submittedButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing&hellip;';
-                submittedButton.setAttribute('aria-busy', 'true');
-                submittedButton.setAttribute('aria-label', 'Import processing');
-            }
-        });
-    });
+            xhr.addEventListener('load', function () {
+                if (xhr.status >= 200 && xhr.status < 400 && xhr.responseText) {
+                    // Show the server's results page in place of this one.
+                    importInProgress = false;
+                    stopClock();
+                    document.open();
+                    document.write(xhr.responseText);
+                    document.close();
+                    return;
+                }
+                // A short plain-text refusal (an expired form) is worth showing as is.
+                const body = (xhr.responseText || '').trim();
+                const isPlainText = body !== '' && body.length < 300 && body.indexOf('<') === -1;
+                showFailure(isPlainText
+                    ? body
+                    : 'The server returned an error (HTTP ' + xhr.status + '). The import may not have finished. Check the data before trying again.');
+            });
+            xhr.addEventListener('error', function () {
+                showFailure('The connection to the server was lost. The import may still be running. Wait a few minutes, then reload the page to check.');
+            });
 
-    // Restore controls when the browser returns this page from its back-forward cache.
-    window.addEventListener('pageshow', function (event) {
-        if (!event.persisted) {
-            return;
-        }
-
-        importInProgress = false;
-        importButtons.forEach(function (button) {
-            button.disabled = false;
-            button.removeAttribute('aria-disabled');
-            button.removeAttribute('aria-busy');
-            button.removeAttribute('aria-label');
-            button.innerHTML = button.dataset.originalHtml;
+            xhr.send(new FormData(form));
         });
     });
 });

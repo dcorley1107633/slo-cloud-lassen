@@ -335,6 +335,7 @@ if ($mode === 'list'):
     ?>
     <div class="slo-report-builder">
         <div id="pruneNotice" class="alert alert-warning d-none" role="status" aria-live="polite"></div>
+        <div id="editorStatus" class="visually-hidden" role="status" aria-live="polite"></div>
         <form method="post" id="reportEditor">
             <input type="hidden" name="csrf_token" value="<?= report_h($_SESSION['csrf_token']) ?>">
             <input type="hidden" name="action" value="save">
@@ -347,7 +348,7 @@ if ($mode === 'list'):
                         <div class="col-md-4"><label class="form-label" for="reportName">Name <span class="text-danger" aria-label="required">*</span></label><input class="form-control" id="reportName" required maxlength="160"></div>
                         <div class="col-md-8"><label class="form-label" for="reportDescription">Description</label><input class="form-control" id="reportDescription" maxlength="500"></div>
                         <div class="col-md-4"><label class="form-label" for="baseTable">Base table</label><select class="form-select" id="baseTable" aria-describedby="baseTableHelp"></select><div class="form-text" id="baseTableHelp">Choose the record type the report must preserve. Orphan-review reports should start at the affected table.</div></div>
-                        <div class="col-md-8"><label class="form-label">Joined tables</label><div id="joinPanel" class="report-joins border rounded p-2 bg-body-tertiary small"><span class="text-muted">Loading relationships...</span></div></div>
+                        <fieldset class="col-md-8"><legend class="form-label fs-6">Joined tables</legend><div id="joinPanel" class="report-joins border rounded p-2 bg-body-tertiary small"><span class="text-muted">Loading relationships...</span></div></fieldset>
                     </div>
                 </div>
             </div>
@@ -355,7 +356,8 @@ if ($mode === 'list'):
             <div class="card mb-3">
                 <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><span><i class="fas fa-table-columns me-2" aria-hidden="true"></i>Display columns</span><div class="d-flex flex-wrap gap-2"><select class="form-select form-select-sm report-editor-picker" id="columnPicker" aria-label="Display column to add"></select><button type="button" class="btn btn-sm btn-primary text-nowrap report-editor-add" id="addColumn"><i class="fas fa-plus me-1" aria-hidden="true"></i>Add column</button></div></div>
                 <div class="card-body p-0 table-responsive">
-                    <table class="table table-sm align-middle mb-0" id="reportColumns"><caption class="visually-hidden">Display columns in result order</caption><thead><tr><th scope="col" class="text-nowrap"><span class="visually-hidden">Order</span></th><th scope="col">Field</th><th scope="col">Label override</th><th scope="col">Aggregate</th><th scope="col">Sort</th><th scope="col" class="text-center" title="Start a new group and subtotal when this value changes">Break</th><th scope="col" class="text-center" title="Sum this column in subtotals and the grand total">Summarize</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead><tbody></tbody></table>
+                    <table class="table table-sm align-middle mb-0" id="reportColumns" aria-describedby="columnsHelp"><caption class="visually-hidden">Display columns in result order</caption><thead><tr><th scope="col" class="text-nowrap"><span class="visually-hidden">Order</span></th><th scope="col">Field</th><th scope="col" id="colhead-label">Label override</th><th scope="col" id="colhead-aggregate">Aggregate</th><th scope="col" id="colhead-sort">Sort</th><th scope="col" class="text-center" id="colhead-break">Break</th><th scope="col" class="text-center" id="colhead-summarize">Summarize</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead><tbody></tbody></table>
+                    <p class="form-text px-2 mb-2" id="columnsHelp"><strong>Break</strong> starts a new group and subtotal when the value changes. <strong>Summarize</strong> totals the column in subtotals and the grand total. Decrypted fields cannot be sorted or used as a break.</p>
                     <p class="text-muted text-center py-3 mb-0 d-none" id="columnsEmpty">No display columns yet.</p>
                 </div>
             </div>
@@ -363,7 +365,7 @@ if ($mode === 'list'):
             <div class="card mb-3">
                 <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><span><i class="fas fa-filter me-2" aria-hidden="true"></i>Filter parameters</span><div class="d-flex flex-wrap gap-2"><select class="form-select form-select-sm report-editor-picker" id="filterPicker" aria-label="Filter field to add"></select><button type="button" class="btn btn-sm btn-primary text-nowrap report-editor-add" id="addFilter"><i class="fas fa-plus me-1" aria-hidden="true"></i>Add filter</button></div></div>
                 <div class="card-body p-0 table-responsive">
-                    <table class="table table-sm align-middle mb-0" id="reportFilters"><caption class="visually-hidden">Runtime filter parameters</caption><thead><tr><th scope="col" class="text-nowrap"><span class="visually-hidden">Order</span></th><th scope="col">Field</th><th scope="col">Prompt label</th><th scope="col">Input</th><th scope="col">Operator</th><th scope="col">Default value(s)</th><th scope="col" class="text-center">Required</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead><tbody></tbody></table>
+                    <table class="table table-sm align-middle mb-0" id="reportFilters"><caption class="visually-hidden">Runtime filter parameters</caption><thead><tr><th scope="col" class="text-nowrap"><span class="visually-hidden">Order</span></th><th scope="col">Field</th><th scope="col" id="filterhead-label">Prompt label</th><th scope="col" id="filterhead-control">Input</th><th scope="col" id="filterhead-operator">Operator</th><th scope="col" id="filterhead-default">Default value(s)</th><th scope="col" class="text-center" id="filterhead-required">Required</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead><tbody></tbody></table>
                     <p class="text-muted text-center py-3 mb-0 d-none" id="filtersEmpty">No filters &mdash; the report will return everything up to the row limit.</p>
                 </div>
             </div>
@@ -438,6 +440,21 @@ if ($mode === 'list'):
         function fieldTitle(table, field) { return `${catalog.tables[table]?.label || table} · ${fieldMeta(table, field)?.label || field}`; }
         function splitField(value) { const point = value.indexOf('.'); return point < 0 ? ['', ''] : [value.slice(0, point), value.slice(point + 1)]; }
         function safeId(value) { return String(value).replace(/[^a-z0-9_-]/gi, '-'); }
+        function announce(message) {
+            // Clear first so repeating the same message is still announced.
+            $('editorStatus').textContent = '';
+            setTimeout(() => { $('editorStatus').textContent = message; }, 50);
+        }
+        // Re-rendering replaces every row, so put keyboard focus back on the
+        // equivalent control (same action at the item's new position).
+        function restoreFocus(body, focus) {
+            if (!focus) return;
+            const row = body.rows[Math.min(focus.index, body.rows.length - 1)];
+            const target = row?.querySelector(`[data-action="${focus.action}"]:not([disabled])`)
+                || row?.querySelector('[data-action="remove"]')
+                || focus.fallback;
+            target?.focus();
+        }
 
         function renderJoins() {
             const panel = $('joinPanel');
@@ -461,6 +478,7 @@ if ($mode === 'list'):
                     if (!checkbox.checked) def.joins = def.joins.filter(id => id !== relationship.id);
                     normalize();
                     renderAll();
+                    $(id)?.focus();
                 });
                 panel.appendChild(wrapper);
             });
@@ -490,37 +508,46 @@ if ($mode === 'list'):
             }
         }
 
-        function renderColumns() {
+        function renderColumns(focus = null) {
             const body = $('reportColumns').querySelector('tbody');
             body.innerHTML = '';
             $('columnsEmpty').classList.toggle('d-none', def.columns.length > 0);
             def.columns.forEach((column, index) => {
                 const meta = fieldMeta(column.table, column.field);
+                const plain = fieldTitle(column.table, column.field);
+                const title = esc(plain);
+                const fieldId = `column-field-${index}`;
+                const named = header => `aria-labelledby="colhead-${header} ${fieldId}"`;
                 const aggregates = catalog.types[meta.type]?.aggregates || [];
                 const numeric = ['int', 'decimal', 'bool'].includes(meta.type) || column.aggregate !== '';
                 // Decrypted fields exist only after the query runs: no SQL sort or control break unless aggregated.
                 const decrypted = meta.type === 'encrypted' && column.aggregate === '';
                 if (decrypted) { column.sort = ''; column.break = false; }
                 const row = document.createElement('tr');
-                row.innerHTML = `<td class="text-nowrap report-drag-buttons"><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="up" title="Move up" aria-label="Move column ${index + 1} up"><i class="fas fa-caret-up" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="down" title="Move down" aria-label="Move column ${index + 1} down"><i class="fas fa-caret-down" aria-hidden="true"></i></button></td><td class="small">${esc(fieldTitle(column.table, column.field))}${meta.type === 'encrypted' ? ' <span class="badge text-bg-info">decrypted</span>' : ''}</td><td><input class="form-control form-control-sm" data-action="label" value="${esc(column.label)}" placeholder="${esc(meta.label)}" aria-label="Label override for column ${index + 1}"></td><td><select class="form-select form-select-sm" data-action="aggregate" aria-label="Aggregate for column ${index + 1}"><option value="">— group value —</option>${aggregates.map(aggregate => `<option value="${esc(aggregate)}" ${column.aggregate === aggregate ? 'selected' : ''}>${esc(catalog.aggregates[aggregate])}</option>`).join('')}</select></td><td><select class="form-select form-select-sm" data-action="sort" ${decrypted ? 'disabled' : ''} aria-label="Sort for column ${index + 1}"><option value="">—</option><option value="asc" ${column.sort === 'asc' ? 'selected' : ''}>Asc</option><option value="desc" ${column.sort === 'desc' ? 'selected' : ''}>Desc</option></select></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="break" ${column.break ? 'checked' : ''} ${decrypted ? 'disabled' : ''} aria-label="Control break for column ${index + 1}"></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="summarize" ${column.summarize ? 'checked' : ''} ${numeric ? '' : 'disabled'} aria-label="Summarize column ${index + 1}"></td><td><button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="remove" title="Remove" aria-label="Remove column ${index + 1}">&times;</button></td>`;
-                row.querySelector('[data-action="up"]').addEventListener('click', () => { if (index > 0) { def.columns.splice(index - 1, 0, def.columns.splice(index, 1)[0]); renderColumns(); } });
-                row.querySelector('[data-action="down"]').addEventListener('click', () => { if (index < def.columns.length - 1) { def.columns.splice(index + 1, 0, def.columns.splice(index, 1)[0]); renderColumns(); } });
-                row.querySelector('[data-action="remove"]').addEventListener('click', () => { def.columns.splice(index, 1); renderColumns(); });
+                row.innerHTML = `<td class="text-nowrap report-drag-buttons"><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="up" title="Move up" aria-label="Move ${title} up"><i class="fas fa-caret-up" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="down" title="Move down" aria-label="Move ${title} down"><i class="fas fa-caret-down" aria-hidden="true"></i></button></td><th scope="row" class="small fw-normal" id="${fieldId}">${title}${meta.type === 'encrypted' ? ' <span class="badge text-bg-info">decrypted</span>' : ''}</th><td><input class="form-control form-control-sm" data-action="label" value="${esc(column.label)}" placeholder="${esc(meta.label)}" ${named('label')}></td><td><select class="form-select form-select-sm" data-action="aggregate" ${named('aggregate')}><option value="">— group value —</option>${aggregates.map(aggregate => `<option value="${esc(aggregate)}" ${column.aggregate === aggregate ? 'selected' : ''}>${esc(catalog.aggregates[aggregate])}</option>`).join('')}</select></td><td><select class="form-select form-select-sm" data-action="sort" ${decrypted ? 'disabled' : ''} ${named('sort')}><option value="">—</option><option value="asc" ${column.sort === 'asc' ? 'selected' : ''}>Asc</option><option value="desc" ${column.sort === 'desc' ? 'selected' : ''}>Desc</option></select></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="break" ${column.break ? 'checked' : ''} ${decrypted ? 'disabled' : ''} ${named('break')} aria-describedby="columnsHelp"></td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="summarize" ${column.summarize ? 'checked' : ''} ${numeric ? '' : 'disabled'} ${named('summarize')} aria-describedby="columnsHelp"></td><td><button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="remove" title="Remove" aria-label="Remove ${title}">&times;</button></td>`;
+                row.querySelector('[data-action="up"]').addEventListener('click', () => { if (index > 0) { def.columns.splice(index - 1, 0, def.columns.splice(index, 1)[0]); renderColumns({index: index - 1, action: 'up'}); announce(`${plain} moved to position ${index} of ${def.columns.length}.`); } });
+                row.querySelector('[data-action="down"]').addEventListener('click', () => { if (index < def.columns.length - 1) { def.columns.splice(index + 1, 0, def.columns.splice(index, 1)[0]); renderColumns({index: index + 1, action: 'down'}); announce(`${plain} moved to position ${index + 2} of ${def.columns.length}.`); } });
+                row.querySelector('[data-action="remove"]').addEventListener('click', () => { def.columns.splice(index, 1); renderColumns({index, action: 'remove', fallback: $('columnPicker')}); announce(`${plain} removed from display columns.`); });
                 row.querySelector('[data-action="label"]').addEventListener('input', event => column.label = event.target.value);
-                row.querySelector('[data-action="aggregate"]').addEventListener('change', event => { column.aggregate = event.target.value; if (column.aggregate) column.break = false; renderColumns(); });
+                row.querySelector('[data-action="aggregate"]').addEventListener('change', event => { column.aggregate = event.target.value; if (column.aggregate) column.break = false; renderColumns({index, action: 'aggregate'}); });
                 row.querySelector('[data-action="sort"]').addEventListener('change', event => column.sort = event.target.value);
-                row.querySelector('[data-action="break"]').addEventListener('change', event => { column.break = event.target.checked; if (column.break) column.aggregate = ''; renderColumns(); });
+                row.querySelector('[data-action="break"]').addEventListener('change', event => { column.break = event.target.checked; if (column.break) column.aggregate = ''; renderColumns({index, action: 'break'}); });
                 row.querySelector('[data-action="summarize"]').addEventListener('change', event => column.summarize = event.target.checked);
                 body.appendChild(row);
             });
+            restoreFocus(body, focus);
         }
 
-        function renderFilters() {
+        function renderFilters(focus = null) {
             const body = $('reportFilters').querySelector('tbody');
             body.innerHTML = '';
             $('filtersEmpty').classList.toggle('d-none', def.filters.length > 0);
             def.filters.forEach((filter, index) => {
                 const meta = fieldMeta(filter.table, filter.field);
+                const plain = fieldTitle(filter.table, filter.field);
+                const title = esc(plain);
+                const fieldId = `filter-field-${index}`;
+                const named = (header, extra = '') => `aria-labelledby="filterhead-${header}${extra} ${fieldId}"`;
                 const type = catalog.types[meta.type];
                 const operators = type?.operators || [];
                 const supportsMulti = operators.includes('in');
@@ -532,19 +559,21 @@ if ($mode === 'list'):
                 const needsValue = !['is_null', 'not_null'].includes(filter.operator);
                 const inputType = type?.input === 'number' ? 'number' : (type?.input === 'date' ? 'date' : 'text');
                 const defaultValue = Array.isArray(filter.default) ? filter.default.join(', ') : (filter.default || '');
+                const bound = which => `<span class="visually-hidden" id="filter-${which}-${index}">${which} bound</span>`;
                 const row = document.createElement('tr');
-                row.innerHTML = `<td class="text-nowrap report-drag-buttons"><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="up" title="Move up" aria-label="Move filter ${index + 1} up"><i class="fas fa-caret-up" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="down" title="Move down" aria-label="Move filter ${index + 1} down"><i class="fas fa-caret-down" aria-hidden="true"></i></button></td><td class="small">${esc(fieldTitle(filter.table, filter.field))}</td><td><input class="form-control form-control-sm" data-action="label" value="${esc(filter.label)}" placeholder="${esc(meta.label)}" aria-label="Prompt label for filter ${index + 1}"></td><td><select class="form-select form-select-sm" data-action="control" aria-label="Input control for filter ${index + 1}"><option value="textbox">Textbox</option><option value="multi_select" ${filter.control === 'multi_select' ? 'selected' : ''} ${supportsMulti ? '' : 'disabled'}>Dropdown multiselect</option></select></td><td><select class="form-select form-select-sm" data-action="operator" ${filter.control === 'multi_select' ? 'disabled' : ''} aria-label="Operator for filter ${index + 1}">${shownOperators.map(operator => `<option value="${esc(operator)}" ${filter.operator === operator ? 'selected' : ''}>${esc(catalog.operators[operator])}</option>`).join('')}</select></td><td>${needsValue ? `<div class="d-flex gap-1"><input class="form-control form-control-sm" type="${filter.control === 'multi_select' ? 'text' : inputType}" step="any" data-action="default" value="${esc(defaultValue)}" ${filter.control === 'multi_select' ? 'placeholder="comma-separated values"' : ''} aria-label="Default value for filter ${index + 1}">${isRange ? `<input class="form-control form-control-sm" type="${inputType}" step="any" data-action="default-to" value="${esc(filter.default_to || '')}" aria-label="Default upper value for filter ${index + 1}">` : ''}</div>` : '<span class="text-muted small">n/a</span>'}</td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="required" ${filter.required ? 'checked' : ''} aria-label="Require filter ${index + 1}"></td><td><button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="remove" title="Remove" aria-label="Remove filter ${index + 1}">&times;</button></td>`;
-                row.querySelector('[data-action="up"]').addEventListener('click', () => { if (index > 0) { def.filters.splice(index - 1, 0, def.filters.splice(index, 1)[0]); renderFilters(); } });
-                row.querySelector('[data-action="down"]').addEventListener('click', () => { if (index < def.filters.length - 1) { def.filters.splice(index + 1, 0, def.filters.splice(index, 1)[0]); renderFilters(); } });
-                row.querySelector('[data-action="remove"]').addEventListener('click', () => { def.filters.splice(index, 1); renderFilters(); });
+                row.innerHTML = `<td class="text-nowrap report-drag-buttons"><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="up" title="Move up" aria-label="Move ${title} filter up"><i class="fas fa-caret-up" aria-hidden="true"></i></button><button type="button" class="btn btn-sm btn-light px-1 py-0" data-action="down" title="Move down" aria-label="Move ${title} filter down"><i class="fas fa-caret-down" aria-hidden="true"></i></button></td><th scope="row" class="small fw-normal" id="${fieldId}">${title}</th><td><input class="form-control form-control-sm" data-action="label" value="${esc(filter.label)}" placeholder="${esc(meta.label)}" ${named('label')}></td><td><select class="form-select form-select-sm" data-action="control" ${named('control')}><option value="textbox">Textbox</option><option value="multi_select" ${filter.control === 'multi_select' ? 'selected' : ''} ${supportsMulti ? '' : 'disabled'}>Dropdown multiselect</option></select></td><td><select class="form-select form-select-sm" data-action="operator" ${filter.control === 'multi_select' ? 'disabled' : ''} ${named('operator')}>${shownOperators.map(operator => `<option value="${esc(operator)}" ${filter.operator === operator ? 'selected' : ''}>${esc(catalog.operators[operator])}</option>`).join('')}</select></td><td>${needsValue ? `<div class="d-flex gap-1">${isRange ? bound('lower') + bound('upper') : ''}<input class="form-control form-control-sm" type="${filter.control === 'multi_select' ? 'text' : inputType}" step="any" data-action="default" value="${esc(defaultValue)}" ${filter.control === 'multi_select' ? 'placeholder="comma-separated values"' : ''} ${named('default', isRange ? ` filter-lower-${index}` : '')}>${isRange ? `<input class="form-control form-control-sm" type="${inputType}" step="any" data-action="default-to" value="${esc(filter.default_to || '')}" ${named('default', ` filter-upper-${index}`)}>` : ''}</div>` : '<span class="text-muted small">n/a</span>'}</td><td class="text-center"><input class="form-check-input" type="checkbox" data-action="required" ${filter.required ? 'checked' : ''} ${named('required')}></td><td><button type="button" class="btn btn-sm btn-outline-danger border-0" data-action="remove" title="Remove" aria-label="Remove ${title} filter">&times;</button></td>`;
+                row.querySelector('[data-action="up"]').addEventListener('click', () => { if (index > 0) { def.filters.splice(index - 1, 0, def.filters.splice(index, 1)[0]); renderFilters({index: index - 1, action: 'up'}); announce(`${plain} filter moved to position ${index} of ${def.filters.length}.`); } });
+                row.querySelector('[data-action="down"]').addEventListener('click', () => { if (index < def.filters.length - 1) { def.filters.splice(index + 1, 0, def.filters.splice(index, 1)[0]); renderFilters({index: index + 1, action: 'down'}); announce(`${plain} filter moved to position ${index + 2} of ${def.filters.length}.`); } });
+                row.querySelector('[data-action="remove"]').addEventListener('click', () => { def.filters.splice(index, 1); renderFilters({index, action: 'remove', fallback: $('filterPicker')}); announce(`${plain} filter removed.`); });
                 row.querySelector('[data-action="label"]').addEventListener('input', event => filter.label = event.target.value);
-                row.querySelector('[data-action="control"]').addEventListener('change', event => { filter.control = event.target.value; if (filter.control === 'multi_select') filter.operator = 'in'; renderFilters(); });
-                row.querySelector('[data-action="operator"]').addEventListener('change', event => { filter.operator = event.target.value; renderFilters(); });
+                row.querySelector('[data-action="control"]').addEventListener('change', event => { filter.control = event.target.value; if (filter.control === 'multi_select') filter.operator = 'in'; renderFilters({index, action: 'control'}); });
+                row.querySelector('[data-action="operator"]').addEventListener('change', event => { filter.operator = event.target.value; renderFilters({index, action: 'operator'}); });
                 row.querySelector('[data-action="required"]').addEventListener('change', event => filter.required = event.target.checked);
                 row.querySelector('[data-action="default"]')?.addEventListener('input', event => { filter.default = filter.control === 'multi_select' ? event.target.value.split(',').map(value => value.trim()).filter(Boolean) : event.target.value; });
                 row.querySelector('[data-action="default-to"]')?.addEventListener('input', event => filter.default_to = event.target.value);
                 body.appendChild(row);
             });
+            restoreFocus(body, focus);
         }
 
         function renderAll() {
@@ -581,6 +610,7 @@ if ($mode === 'list'):
             const [table, field] = splitField(value);
             def.columns.push({table, field, label:'', aggregate:'', sort:'', break:false, summarize:false});
             renderColumns();
+            announce(`${fieldTitle(table, field)} added as display column ${def.columns.length}.`);
         });
         $('addFilter').addEventListener('click', () => {
             const value = $('filterPicker').value;
@@ -589,6 +619,7 @@ if ($mode === 'list'):
             const type = fieldMeta(table, field).type;
             def.filters.push({table, field, operator:catalog.types[type].operators[0], control:'textbox', label:'', required:false, default:'', default_to:''});
             renderFilters();
+            announce(`${fieldTitle(table, field)} added as filter ${def.filters.length}.`);
         });
         $('reportEditor').addEventListener('submit', () => {
             def.name = $('reportName').value.trim();

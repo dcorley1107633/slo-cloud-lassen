@@ -65,15 +65,81 @@ $theme->showHeader($context);
                         <tbody>
                             <tr>
                                 <td><strong>v<?= htmlspecialchars(APP_VERSION) ?></strong> <span class="badge bg-primary">Current</span></td>
-                                <td>July 20, 2026</td>
+                                <td>October 20, 2026</td>
                                 <td>
                                     <span class="badge bg-success me-1">Level A: Supports</span>
                                     <span class="badge bg-success">Level AA: Supports</span>
                                     <span class="visually-hidden">All applicable WCAG 2.2 Level A and AA criteria support conformance in the evaluated scope</span>
+                                    <div class="small text-muted mt-1">Results carried forward from the 5.1.0 evaluation; 5.2.1, 5.2.2, 5.2.3, 5.2.4 and 5.2.5 interface changes pending re-evaluation.</div>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.5.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.4</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>October 20, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.4.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.3</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>October 9, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.3.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.2</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>September 30, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.2.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.1</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>September 26, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.1.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.1.1</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>July 20, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
                                 </td>
                                 <td>
                                     <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.1.1.md" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
                                     </a>
                                 </td>
                             </tr>
@@ -103,32 +169,20 @@ $theme->showHeader($context);
                                 </td>
                             </tr>
                             <tr>
-                                <td>v5.0.0</td>
+                                <td><strong>v5.0.0</strong> <span class="badge bg-secondary">Superseded</span></td>
                                 <td>March 30, 2026</td>
                                 <td>
-                                    <span class="badge bg-success me-1">Level A: Full</span>
-                                    <span class="badge bg-success me-1">Level AA: Full</span>
-                                    <span class="badge bg-warning text-dark">Level AAA: Partial (42/47)</span>
+                                    <span class="badge bg-secondary">Historical claim; evidence not retained</span>
                                 </td>
-                                <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.0.0.md" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View Report
-                                    </a>
-                                </td>
+                                <td><span class="text-muted">Report not retained</span></td>
                             </tr>
                             <tr>
-                                <td>v5.0.0 Beta</td>
+                                <td><strong>v5.0.0 Beta</strong> <span class="badge bg-secondary">Superseded</span></td>
                                 <td>March 3, 2026</td>
                                 <td>
-                                    <span class="badge bg-success me-1">Level A: Full</span>
-                                    <span class="badge bg-success me-1">Level AA: Full</span>
-                                    <span class="badge bg-warning text-dark">Level AAA: Partial (38/47)</span>
+                                    <span class="badge bg-secondary">Historical claim; evidence not retained</span>
                                 </td>
-                                <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.0.0-beta.md" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View Report
-                                    </a>
-                                </td>
+                                <td><span class="text-muted">Report not retained</span></td>
                             </tr>
                         </tbody>
                     </table>
@@ -150,15 +204,81 @@ $theme->showHeader($context);
                         <tbody>
                             <tr>
                                 <td><strong>v<?= htmlspecialchars(APP_VERSION) ?></strong> <span class="badge bg-primary">Current</span></td>
-                                <td>July 20, 2026</td>
+                                <td>October 20, 2026</td>
                                 <td>
                                     <span class="badge bg-success me-1">Level A: Supports</span>
                                     <span class="badge bg-success">Level AA: Supports</span>
                                     <span class="visually-hidden">All applicable WCAG 2.2 Level A and AA criteria support conformance in the evaluated scope</span>
+                                    <div class="small text-muted mt-1">Results carried forward from the 5.1.0 evaluation; 5.2.1, 5.2.2, 5.2.3, 5.2.4 and 5.2.5 interface changes pending re-evaluation.</div>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.5.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.4</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>October 20, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.4.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.3</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>October 9, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.3.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.2</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>September 30, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.2.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.2.1</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>September 26, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
+                                </td>
+                                <td>
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.1.md" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>v5.1.1</strong> <span class="badge bg-secondary">Superseded</span></td>
+                                <td>July 20, 2026</td>
+                                <td>
+                                    <span class="badge bg-success me-1">Level A: Supports</span>
+                                    <span class="badge bg-success">Level AA: Supports</span>
                                 </td>
                                 <td>
                                     <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.1.1.md" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
+                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View report
                                     </a>
                                 </td>
                             </tr>
@@ -188,18 +308,12 @@ $theme->showHeader($context);
                                 </td>
                             </tr>
                             <tr>
-                                <td>v5.0.0 Beta</td>
+                                <td><strong>v5.0.0 Beta</strong> <span class="badge bg-secondary">Superseded</span></td>
                                 <td>March 3, 2026</td>
                                 <td>
-                                    <span class="badge bg-success me-1">Level A: Full</span>
-                                    <span class="badge bg-warning text-dark me-1">Level AA: Partial</span>
-                                    <span class="badge bg-warning text-dark">Level AAA: Partial</span>
+                                    <span class="badge bg-secondary">Historical claim; evidence not retained</span>
                                 </td>
-                                <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.0.0-beta.md" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View Report
-                                    </a>
-                                </td>
+                                <td><span class="text-muted">Report not retained</span></td>
                             </tr>
                         </tbody>
                     </table>

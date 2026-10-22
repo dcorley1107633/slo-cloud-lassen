@@ -8,61 +8,6 @@ require_once __DIR__ . '/../system/includes/message_page.php';
 // Keep HTTPS embedding compatible while retaining every other global CSP rule.
 header('Content-Security-Policy: ' . \SLOCloud\Core\Security::contentSecurityPolicy(["'self'", 'https:']));
 
-/**
- * Parse a tokenized format string against an actual value.
- *
- * Format example: "{CRN}.{TERM}" against "45581.202533"
- * Returns array of lowercased token names => extracted values.
- * Returns empty array if the value does not match the format.
- *
- * Rules:
- * - Delimiter characters are every character in the format outside of {TOKEN} blocks.
- * - Non-final tokens capture [^<delimiters>]+ (values must not contain delimiter chars).
- * - The final token captures everything remaining (.+).
- *
- * @param string $format e.g. "{CRN}.{TERM}"
- * @param string $value  e.g. "45581.202533"
- * @return array e.g. ['crn' => '45581', 'term' => '202533']
- */
-function parseTokenFormat(string $format, string $value): array {
-    if (empty($format) || empty($value)) {
-        return [];
-    }
-
-    preg_match_all('/\{([A-Z_]+)\}/', $format, $matches);
-    $tokens = $matches[1];
-
-    if (empty($tokens)) {
-        return [];
-    }
-
-    // All characters outside token blocks are potential delimiters
-    $delimString = preg_replace('/\{[A-Z_]+\}/', '', $format);
-    $delimChars  = array_unique(array_filter(str_split($delimString), fn($c) => $c !== ''));
-
-    $nonFinalGroup = empty($delimChars)
-        ? '(.+?)'
-        : '([^' . preg_quote(implode('', $delimChars), '/') . ']+)';
-
-    $pattern = preg_quote($format, '/');
-    $lastToken = end($tokens);
-    foreach ($tokens as $token) {
-        $replacement = ($token === $lastToken) ? '(.+)' : $nonFinalGroup;
-        $pattern = str_replace(preg_quote('{' . $token . '}', '/'), $replacement, $pattern);
-    }
-    $pattern = '/^' . $pattern . '$/';
-
-    if (!preg_match($pattern, $value, $m)) {
-        return [];
-    }
-
-    $result = [];
-    foreach ($tokens as $i => $token) {
-        $result[strtolower($token)] = $m[$i + 1];
-    }
-    return $result;
-}
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     render_message_page('error', 'Invalid Request', 'LTI launches must use POST method.');
     exit;
@@ -105,25 +50,12 @@ $courseLabelFormat  = $config->get('lti.course_label_format', '{COURSE}-{REST}')
 
 $offeringRaw = $_POST[$offeringField] ?? '';
 
-// XLS cross-listing: handle before generic token parse.
-// Normalise away the optional period, then extract the trailing 6-digit banner term.
-// The full normalised value (e.g. XLS27202633) becomes the CRN for downstream XLS detection.
-if ($offeringRaw !== '' && stripos($offeringRaw, 'XLS') === 0) {
-    $xlsNorm = str_replace('.', '', $offeringRaw);
-    if (preg_match('/^XLS.+?(\d{6})$/', $xlsNorm, $xlsM)) {
-        $crn    = $xlsNorm;
-        $termId = $xlsM[1];
-    } else {
-        $crn    = null;
-        $termId = null;
-    }
-} else {
-    $offeringTokens = parseTokenFormat($offeringFormat, $offeringRaw);
-    $crn    = $offeringTokens['crn']  ?? null;
-    $termId = $offeringTokens['term'] ?? null;
-}
+// Shared with the Canvas deployment preview so both read SIS IDs identically.
+$offering = \SLOCloud\Core\LtiLaunchContext::parseOffering($offeringFormat, (string)$offeringRaw);
+$crn    = $offering['crn'];
+$termId = $offering['term'];
 
-$labelTokens  = parseTokenFormat($courseLabelFormat, $_POST[$courseLabelField] ?? '');
+$labelTokens  = \SLOCloud\Core\LtiLaunchContext::parseTokenFormat($courseLabelFormat, (string)($_POST[$courseLabelField] ?? ''));
 $courseNumber = $labelTokens['course'] ?? null;
 $courseName   = $_POST['context_title'] ?? '';
 

@@ -67,46 +67,7 @@ class Database
         $this->driver = $this->config['driver'] ?? 'mysql';
         
         try {
-            if ($this->driver === 'mssql' || $this->driver === 'sqlsrv') {
-                // Microsoft SQL Server connection with encrypted transport.
-                $dsn = sprintf(
-                    'sqlsrv:Server=%s,%d;Database=%s;Encrypt=yes;TrustServerCertificate=yes',
-                    $this->config['host'],
-                    $this->config['port'] ?? 1433,
-                    $this->config['name']
-                );
-            } else {
-                // MySQL connection (default)
-                $dsn = sprintf(
-                    'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-                    $this->config['host'],
-                    $this->config['port'] ?? 3306,
-                    $this->config['name'],
-                    $this->config['charset'] ?? 'utf8mb4'
-                );
-            }
-            
-            $options = [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ];
-            if ($this->driver === 'mssql' || $this->driver === 'sqlsrv') {
-                $options[PDO::SQLSRV_ATTR_ENCODING] = PDO::SQLSRV_ENCODING_UTF8;
-            }
-            
-            $this->connection = new PDO(
-                $dsn,
-                $this->config['username'],
-                $this->config['password'],
-                $options
-            );
-            
-            // Set timezone to UTC for MySQL
-            if ($this->driver === 'mysql') {
-                $this->connection->exec("SET time_zone = '+00:00'");
-            }
-            
+            $this->connection = self::open($this->config);
         } catch (PDOException $e) {
             throw new RuntimeException(
                 'Database connection failed: ' . $e->getMessage(),
@@ -114,6 +75,59 @@ class Database
                 $e
             );
         }
+    }
+
+    /**
+     * Open a PDO connection from database settings (driver, host, port, name,
+     * username, password, charset). Used for the application connection and to
+     * test changed settings before they are saved.
+     *
+     * @throws PDOException If the connection fails
+     */
+    public static function open(array $config): PDO
+    {
+        $driver = $config['driver'] ?? 'mysql';
+        if ($driver === 'mssql' || $driver === 'sqlsrv') {
+            // Microsoft SQL Server connection with encrypted transport.
+            $dsn = sprintf(
+                'sqlsrv:Server=%s,%d;Database=%s;Encrypt=yes;TrustServerCertificate=yes',
+                $config['host'],
+                $config['port'] ?? 1433,
+                $config['name']
+            );
+        } else {
+            // MySQL connection (default)
+            $dsn = sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+                $config['host'],
+                $config['port'] ?? 3306,
+                $config['name'],
+                $config['charset'] ?? 'utf8mb4'
+            );
+        }
+        
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ];
+        if ($driver === 'mssql' || $driver === 'sqlsrv') {
+            $options[PDO::SQLSRV_ATTR_ENCODING] = PDO::SQLSRV_ENCODING_UTF8;
+        }
+        
+        $connection = new PDO(
+            $dsn,
+            $config['username'],
+            $config['password'],
+            $options
+        );
+        
+        // Set timezone to UTC for MySQL
+        if ($driver === 'mysql') {
+            $connection->exec("SET time_zone = '+00:00'");
+        }
+
+        return $connection;
     }
     
     /**
@@ -209,7 +223,7 @@ class Database
      * Normalize row data from SQL Server (cast numeric strings to proper types)
      * 
      * SQL Server PDO returns all values as strings. This method casts numeric
-     * values back to int/float for compatibility with type-strict functions.
+     * values back to int for compatibility with type-strict functions.
      * 
      * @param array|false $row Row from fetch()
      * @return array|false Normalized row with proper types
@@ -240,11 +254,11 @@ class Database
 
                 if ($isIntegerColumn) {
                     $row[$key] = (int)$value;
-                } elseif (strpos($value, '.') !== false) {
-                    // Float columns (e.g. percentage, score)
-                    $row[$key] = (float)$value;
                 }
-                // All other numeric-looking strings stay as strings
+                // All other numeric-looking strings stay as strings. The schema has
+                // no decimal columns, so a dotted value is a code such as an
+                // outcome "1.1"; as a float it broke htmlspecialchars() under
+                // strict types and turned "1.10" into 1.1.
             }
         }
         

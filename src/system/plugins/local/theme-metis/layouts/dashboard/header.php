@@ -129,6 +129,7 @@ $themeCanAdminister = $themeDb instanceof \SLOCloud\Core\Database
     <?php if (isset($customCss)): ?>
     <?= $customCss ?>
     <?php endif; ?>
+    <?php require dirname(__DIR__, 5) . '/includes/color_scheme_style.php'; ?>
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -165,8 +166,14 @@ $themeCanAdminister = $themeDb instanceof \SLOCloud\Core\Database
             <?php if ($themeCanAdminister): ?><a href="<?= BASE_URL ?>administration/config.php" class="<?= ($currentPage ?? '') === 'admin_config' ? 'active' : '' ?>">
                 <i class="bi bi-gear"></i> Configuration
             </a>
+            <a href="<?= BASE_URL ?>administration/color_scheme.php" class="<?= ($currentPage ?? '') === 'admin_color_scheme' ? 'active' : '' ?>" <?= ($currentPage ?? '') === 'admin_color_scheme' ? 'aria-current="page"' : '' ?>>
+                <i class="bi bi-palette" aria-hidden="true"></i> Color Scheme
+            </a>
             <a href="<?= BASE_URL ?>lti/" class="<?= ($currentPage ?? '') === 'admin_lti' ? 'active' : '' ?>">
                 <i class="bi bi-plug"></i> LTI Integration
+            </a>
+            <a href="<?= BASE_URL ?>administration/canvas_deploy.php" class="<?= ($currentPage ?? '') === 'admin_canvas_deploy' ? 'active' : '' ?>" <?= ($currentPage ?? '') === 'admin_canvas_deploy' ? 'aria-current="page"' : '' ?>>
+                <i class="bi bi-cloud-upload" aria-hidden="true"></i> Deploy to Canvas
             </a><?php endif; ?>
             <a href="<?= BASE_URL ?>administration/site_map.php" class="<?= ($currentPage ?? '') === 'admin_site_map' ? 'active' : '' ?>" <?= ($currentPage ?? '') === 'admin_site_map' ? 'aria-current="page"' : '' ?>>
                 <i class="bi bi-diagram-2" aria-hidden="true"></i> Site Map

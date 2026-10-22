@@ -32,6 +32,7 @@ class Logger
     public const EVENT_LOGIN_SUCCESS = 'login_success';
     public const EVENT_LOGIN_FAILED = 'login_failed';
     public const EVENT_LOGOUT = 'logout';
+    public const EVENT_SESSION_ENDED = 'session_ended';
     public const EVENT_PERMISSION_DENIED = 'permission_denied';
     public const EVENT_DATA_EXPORT = 'data_export';
     public const EVENT_ADMIN_ACTION = 'admin_action';
@@ -53,10 +54,7 @@ class Logger
     {
         $this->config = $config;
         $this->db = $db;
-        $configuredDirectory = $config['logging']['log_directory'] ?? null;
-        $this->logDirectory = is_string($configuredDirectory) && trim($configuredDirectory) !== ''
-            ? rtrim($configuredDirectory, '/\\')
-            : Security::dataRoot(dirname(__DIR__, 2)) . '/logs';
+        $this->logDirectory = Security::logDirectory($config['logging']['log_directory'] ?? null, dirname(__DIR__, 2));
         $this->dbPrefix = $config['database']['prefix'] ?? '';
         
         // Ensure log directory exists

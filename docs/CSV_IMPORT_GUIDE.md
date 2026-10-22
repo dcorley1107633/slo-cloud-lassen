@@ -56,7 +56,7 @@ Term Year Name,Term Name,Start Date,End Date,Status
 - New terms will be created
 - Existing records retain their primary keys (no duplicates created)
 
-**Sample File:** See `data/normalized_FILE_01_term.csv`
+**Sample File:** See `src/assets/sample_data/normalized_FILE_01_term.csv`
 
 ---
 

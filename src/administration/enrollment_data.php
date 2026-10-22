@@ -187,7 +187,7 @@ $whereConditions[] = lifecycle_status_predicate('enrollment', 'e', $dbPrefix, $s
         
         $data[] = [
             htmlspecialchars($row['term_code']),
-            htmlspecialchars($row['crn']),
+            htmlspecialchars($row['crn'] ?? ''),
             $studentDisplay,
             htmlspecialchars($row['created_at'] ?? ''),
             htmlspecialchars(trim($row['created_by_name'] ?? '') ?: 'System'),

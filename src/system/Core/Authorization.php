@@ -9,6 +9,7 @@ final class Authorization
     /** Explicit route-to-permission matrix. Unlisted administration routes are denied. */
     private const ADMIN_ROUTES = [
         'activity_log.php', 'index.php', 'assessments.php', 'assessments_data.php',
+        'canvas_deploy.php', 'canvas_deploy_api.php',
         'config.php', 'courses.php', 'courses_data.php', 'dashboard_courses_data.php',
         'dashboard_sections_data.php', 'disciplines.php', 'disciplines_data.php',
         'dynamic_reports.php', 'enrollment.php', 'enrollment_data.php',
@@ -19,14 +20,14 @@ final class Authorization
         'programs.php', 'programs_data.php', 'report_options.php', 'sections.php',
         'sections_data.php', 'student_learning_outcomes.php',
         'student_learning_outcomes_data.php', 'students.php', 'students_data.php',
-        'site_map.php', 'system_status.php', 'term_imports_normalized.php', 'terms.php',
+        'site_map.php', 'system_status.php', 'term_imports_normalized.php', 'terms.php', 'color_scheme.php',
         'terms_data.php', 'users.php', 'users_data.php', 'vpat.php', 'vpat_view.php', 'xlist.php',
         'xlist_data.php',
     ];
 
     /** Pages that expose security-sensitive administration data or operations. */
     private const ADMIN_ONLY_ROUTES = [
-        'activity_log.php', 'config.php', 'system_status.php',
+        'activity_log.php', 'canvas_deploy.php', 'canvas_deploy_api.php', 'color_scheme.php', 'config.php', 'system_status.php',
         'term_imports_normalized.php', 'users.php', 'users_data.php',
     ];
 
@@ -37,15 +38,18 @@ final class Authorization
      * endpoints are not listed because those requests only read data.
      */
     private const ADMIN_WRITE_ROUTES = [
-        'assessments.php', 'courses.php', 'disciplines.php', 'enrollment.php',
+        'assessments.php', 'canvas_deploy_api.php', 'courses.php', 'disciplines.php', 'enrollment.php',
         'institutional_outcomes.php', 'program_outcomes.php', 'programs.php',
         'lifecycle_status.php',
         'sections.php', 'student_learning_outcomes.php', 'students.php',
         'terms.php', 'xlist.php',
     ];
 
-    /** Routes that change credentials, roles, keys, or security configuration. */
-    private const RECENT_AUTH_ROUTES = ['config.php', 'users.php', 'users_data.php'];
+    /** What a refused user is told; the reason code itself goes to the security log. */
+    private const DENY_MESSAGES = [
+        'admin_required' => 'Only administrators can do this. Ask an administrator if you need access.',
+        'unclassified_route' => 'This page is not available.',
+    ];
 
     private const ROUTE_POLICIES = [
         'index.php' => 'front_controller',
@@ -54,7 +58,8 @@ final class Authorization
         'session.php' => 'authenticated_csrf',
         'api/api.php' => 'api_key_or_admin',
         'api/index.php' => 'api_key_or_admin',
-        'api/rotate_key.php' => 'admin_recent_auth',
+        'api/rotate_key.php' => 'admin',
+        'api/move_key_folder.php' => 'admin',
         'lti/index.php' => 'admin',
         'lti/launch.php' => 'lti_protocol',
         'lti/assessment.php' => 'lti_launch_context',
@@ -131,25 +136,13 @@ final class Authorization
         }
     }
 
-    public static function requireAdministrationRoute(
-        Database $db,
-        string $prefix,
-        Logger $logger,
-        string $route,
-        string $method = 'GET'
-    ): void
+    public static function requireAdministrationRoute(Database $db, string $prefix, Logger $logger, string $route): void
     {
-        $filename = basename($route);
-        if (!in_array($filename, self::ADMIN_ROUTES, true)) {
+        if (!in_array(basename($route), self::ADMIN_ROUTES, true)) {
             self::deny($logger, $route, 'unclassified_route');
         }
         if (!self::isGlobalAdmin($db, $prefix)) {
             self::deny($logger, $route, 'admin_required');
-        }
-        if (strtoupper($method) === 'POST'
-            && in_array($filename, self::RECENT_AUTH_ROUTES, true)
-            && time() - (int)($_SESSION['authenticated_at'] ?? 0) > 900) {
-            self::deny($logger, $route, 'recent_authentication_required');
         }
     }
 
@@ -160,28 +153,95 @@ final class Authorization
         }
     }
 
-    public static function requireRecentAuthentication(Logger $logger, string $route, int $maxAgeSeconds = 900): void
+    /**
+     * Ends the session (idle timeout or maximum session length) and sends the user to
+     * the login page with $message, returning afterwards to the administration page
+     * they were viewing. Background requests get a 401 JSON reply instead of a redirect,
+     * so tables and dialogs can react rather than receive the login page as data.
+     */
+    public static function endSession(string $message, string $route, string $method, ?string $reason = null): never
     {
-        $authenticatedAt = (int)($_SESSION['authenticated_at'] ?? 0);
-        if ($authenticatedAt <= 0 || time() - $authenticatedAt > $maxAgeSeconds) {
-            self::deny($logger, $route, 'recent_authentication_required');
+        // A signed-in user's session ending is recorded on the Activity Log with its reason.
+        if ($reason !== null && isset($_SESSION['user_id'])) {
+            $userId = (int)$_SESSION['user_id'];
+            Logger::getInstance()->security(
+                Logger::EVENT_SESSION_ENDED,
+                $message,
+                $userId > 0 ? $userId : null,
+                (string)($_SESSION['user_email'] ?? ''),
+                'info',
+                false,
+                ['reason' => $reason, 'route' => $route]
+            );
         }
+        session_unset();
+        session_regenerate_id(true);
+        $_SESSION['flash_error'] = $message;
+        // A background GET (a table's data, an export) is not a page to come back to.
+        if (strtoupper($method) === 'GET' && !self::wantsJson()
+            && preg_match('#^administration/[a-z_]+\.php$#', $route) === 1) {
+            $_SESSION['login_return'] = $route;
+        }
+        $loginUrl = \BASE_URL . 'login.php';
+        if (self::wantsJson()) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['error' => 'session_ended', 'message' => $message, 'login_url' => $loginUrl]);
+            exit;
+        }
+        header('Location: ' . $loginUrl, true, 303);
+        exit;
+    }
+
+    /** Where to go after signing in: the page the ended session was on, otherwise the dashboard. */
+    public static function takeLoginReturn(): string
+    {
+        $route = (string)($_SESSION['login_return'] ?? '');
+        unset($_SESSION['login_return']);
+        if (preg_match('#^administration/[a-z_]+\.php$#', $route) === 1) {
+            return \BASE_URL . $route;
+        }
+        return \BASE_URL . 'administration/';
+    }
+
+    /** True for jQuery/DataTables requests and fetch() calls that ask for JSON. */
+    public static function wantsJson(): bool
+    {
+        return strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest'
+            || str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
     }
 
     private static function deny(Logger $logger, string $route, string $reason): never
     {
         http_response_code(403);
+        self::logDenied($logger, $route, $reason);
+        $message = self::DENY_MESSAGES[$reason] ?? 'You do not have permission to do this.';
+        if (self::wantsJson()) {
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['error' => $reason, 'message' => $message]);
+            exit;
+        }
+        $home = htmlspecialchars((defined('BASE_URL') ? \BASE_URL : '/') . 'administration/', ENT_QUOTES, 'UTF-8');
+        header('Content-Type: text/html; charset=UTF-8');
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Access denied</title></head><body>'
+            . '<main style="font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem;">'
+            . '<h1>Access denied</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
+            . '<p><a href="' . $home . '">Return to the dashboard</a></p></main></body></html>';
+        exit;
+    }
+
+    private static function logDenied(Logger $logger, string $route, string $reason): void
+    {
         $logger->security(
             Logger::EVENT_PERMISSION_DENIED,
-            'Administration authorization denied',
+            self::DENY_MESSAGES[$reason] ?? 'Administration authorization denied',
             isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null,
             null,
             Logger::WARNING,
-            true,
+            // A user reaching a page their role does not allow is an ordinary refusal;
+            // requests for routes the application does not have look like probing.
+            $reason === 'unclassified_route',
             ['route' => $route, 'reason' => $reason]
         );
-        header('Content-Type: text/plain; charset=UTF-8');
-        echo 'Forbidden';
-        exit;
     }
 }

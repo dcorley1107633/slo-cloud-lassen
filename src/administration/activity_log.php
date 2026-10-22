@@ -45,6 +45,52 @@ function activity_audit_event(?string $json, string $fallback): string
     return $fallback;
 }
 
+/** Plain-language details for a security event: its recorded reason or sign-in method, else its description. */
+function activity_security_details(?string $metadataJson, string $description): string
+{
+    $reasons = [
+        'admin_required' => 'Administrator role required',
+        'unclassified_route' => 'Page not available',
+        'recent_authentication_required' => 'Sign-in older than 15 minutes (rule removed in 5.2.3)',
+        'wrong_password' => 'Wrong password',
+        'unknown_account' => 'No account with that email',
+        'account_inactive' => 'Account deactivated',
+        'account_deleted' => 'Account no longer exists',
+        'rate_limited' => 'Too many failed sign-in attempts',
+        'saml_invalid_response' => 'Identity provider response could not be validated',
+        'idle_timeout' => 'Signed out after 2 hours idle',
+        'max_session_length' => 'Signed out 20 hours after sign-in',
+        'user_logout' => 'Signed out by the user',
+    ];
+    $methods = ['password' => 'Password sign-in', 'emergency' => 'Emergency administrator sign-in', 'saml' => 'Single sign-on', 'lti' => 'Sign-in from the LMS (LTI)'];
+    $via = ['emergency' => 'emergency administrator sign-in', 'saml' => 'single sign-on', 'lti' => 'the LMS (LTI)'];
+    $metadata = is_string($metadataJson) && $metadataJson !== '' ? json_decode($metadataJson, true) : null;
+    $reason = is_array($metadata) && is_string($metadata['reason'] ?? null) ? $metadata['reason'] : '';
+    $method = is_array($metadata) && is_string($metadata['method'] ?? null) ? $metadata['method'] : '';
+    $parts = [];
+    if ($reason !== '') $parts[] = $reasons[$reason] ?? str_replace('_', ' ', $reason);
+    // A password sign-in is the default; name the method only when it is something else.
+    if ($method !== '' && $method !== 'password') {
+        $parts[] = $reason !== '' ? 'via ' . ($via[$method] ?? $method) : ($methods[$method] ?? $method);
+    } elseif ($method === 'password' && $reason === '') {
+        $parts[] = $methods['password'];
+    }
+    return $parts !== [] ? implode(', ', $parts) : $description;
+}
+
+function activity_security_outcome(string $eventType, bool $isThreat, ?string $metadataJson): string
+{
+    $metadata = is_string($metadataJson) && $metadataJson !== '' ? json_decode($metadataJson, true) : null;
+    $reason = is_array($metadata) && is_string($metadata['reason'] ?? null) ? $metadata['reason'] : '';
+    // Before 5.2.3 every refusal was stored as a threat; a refusal for an ordinary
+    // reason (role, old sign-in) is shown as denied whatever was stored.
+    if ($isThreat && !in_array($reason, ['admin_required', 'recent_authentication_required'], true)) return 'threat';
+    $event = strtolower($eventType);
+    if ($event === 'permission_denied' || str_ends_with($event, '_denied')) return 'denied';
+    if ($event === 'login_failed' || str_ends_with($event, '_failed')) return 'failed';
+    return 'recorded';
+}
+
 function activity_rows($db, string $prefix, string $driver, string $from, string $to, string $source, string $search, int $limit): array
 {
     $rows = [];
@@ -76,6 +122,7 @@ function activity_rows($db, string $prefix, string $driver, string $from, string
                 'source' => 'Audit',
                 'actor' => $row['changed_by_fk'] !== null ? 'User #' . (int)$row['changed_by_fk'] : '',
                 'event' => $event,
+                'details' => '',
                 'target' => (string)$row['table_name'] . ' #' . (int)$row['record_pk'],
                 'outcome' => strtolower($event) === 'denied' ? 'denied' : 'recorded',
                 'severity' => '',
@@ -89,7 +136,7 @@ function activity_rows($db, string $prefix, string $driver, string $from, string
         $limitSql = ($driver === 'mssql' || $driver === 'sqlsrv') ? "SELECT TOP {$limit}" : 'SELECT';
         $suffix = ($driver === 'mssql' || $driver === 'sqlsrv') ? '' : " LIMIT {$limit}";
         $stmt = $db->query(
-            "{$limitSql} security_log_pk, event_type, event_description, user_fk, username, ip_address, request_uri, severity, is_threat, created_at FROM {$prefix}security_log WHERE {$securityWhere} ORDER BY created_at DESC{$suffix}",
+            "{$limitSql} security_log_pk, event_type, event_description, user_fk, username, ip_address, request_uri, severity, is_threat, metadata, created_at FROM {$prefix}security_log WHERE {$securityWhere} ORDER BY created_at DESC{$suffix}",
             $securityParams
         );
         foreach ($stmt->fetchAll() as $row) {
@@ -99,8 +146,9 @@ function activity_rows($db, string $prefix, string $driver, string $from, string
                 'source' => 'Security',
                 'actor' => $actor,
                 'event' => (string)$row['event_type'],
+                'details' => activity_security_details($row['metadata'] ?? null, (string)($row['event_description'] ?? '')),
                 'target' => '',
-                'outcome' => ((int)($row['is_threat'] ?? 0) === 1) ? 'threat' : 'recorded',
+                'outcome' => activity_security_outcome((string)$row['event_type'], (int)($row['is_threat'] ?? 0) === 1, $row['metadata'] ?? null),
                 'severity' => (string)$row['severity'],
                 'route' => (string)($row['request_uri'] ?? ''),
                 'ip_address' => (string)($row['ip_address'] ?? ''),
@@ -128,10 +176,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'expor
     header('X-Content-Type-Options: nosniff');
     echo "\xEF\xBB\xBF";
     $output = fopen('php://output', 'wb');
-    fputcsv($output, ['Timestamp', 'Source', 'Actor', 'Event', 'Target', 'Outcome', 'Severity', 'Route', 'IP address'], ',', '"', '');
+    fputcsv($output, ['Timestamp', 'Source', 'Actor', 'Event', 'Details', 'Target', 'Outcome', 'Severity', 'Route', 'IP address'], ',', '"', '');
     foreach ($rows as $row) {
         fputcsv($output, array_map('report_csv_safe', [
-            $row['created_at'], $row['source'], $row['actor'], $row['event'], $row['target'],
+            $row['created_at'], $row['source'], $row['actor'], $row['event'], $row['details'], $row['target'],
             $row['outcome'], $row['severity'], $row['route'], $row['ip_address'],
         ]), ',', '"', '');
     }
@@ -203,10 +251,10 @@ $theme->showHeader($context);
         <div class="table-responsive">
             <table class="table table-striped table-hover mb-0">
                 <caption class="visually-hidden">Curated activity log events</caption>
-                <thead><tr><th scope="col">Timestamp</th><th scope="col">Source</th><th scope="col">Actor</th><th scope="col">Event</th><th scope="col">Target</th><th scope="col">Outcome</th><th scope="col">Severity</th><th scope="col">Route</th><th scope="col">IP address</th></tr></thead>
+                <thead><tr><th scope="col">Timestamp</th><th scope="col">Source</th><th scope="col">Actor</th><th scope="col">Event</th><th scope="col">Details</th><th scope="col">Target</th><th scope="col">Outcome</th><th scope="col">Severity</th><th scope="col">Route</th><th scope="col">IP address</th></tr></thead>
                 <tbody>
                 <?php if ($rows === []): ?>
-                    <tr><td colspan="9" class="text-center text-muted py-5">No activity matched the selected filters.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-5">No activity matched the selected filters.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($rows as $row): ?>
                     <tr>
@@ -214,6 +262,7 @@ $theme->showHeader($context);
                         <td><?= report_h($row['source']) ?></td>
                         <td><?= report_h($row['actor']) ?></td>
                         <td><?= report_h($row['event']) ?></td>
+                        <td><?= report_h($row['details']) ?></td>
                         <td><?= report_h($row['target']) ?></td>
                         <td><?= report_h($row['outcome']) ?></td>
                         <td><?= report_h($row['severity']) ?></td>

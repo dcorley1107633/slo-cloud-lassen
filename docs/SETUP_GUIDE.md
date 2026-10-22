@@ -112,16 +112,14 @@ system/database/schema_mssql.sql
 
 ## 6. Run the Web Installer
 
-Generate a one-time installation token on the application server:
+Create a folder for the encryption keys **outside the web root** (e.g. `D:\slocloud\keys`) and give the web server process write access to it.
 
-```powershell
-cd C:\inetpub\slocloud
-php system/scripts/create_setup_token.php
-```
+Open `/setup/` in a browser on the server (`http://localhost/setup/`). Setup accepts localhost by default; for a remote management workstation, explicitly set `SLOCLOUD_SETUP_ALLOWED_IPS` to its IP address first.
 
-Open the tokenized `/setup/?token=...` URL printed by the command. The token expires after 15 minutes. Setup accepts localhost by default; for a remote management workstation, explicitly set `SLOCLOUD_SETUP_ALLOWED_IPS` to its IP address before generating the token.
+1. Enter the keys folder. Setup refuses a folder that is missing, not writable, or inside the web root.
+2. Setup writes `slocloud-setup-code.txt` into that folder. Open it on the server and paste the code into the page. The code expires after 15 minutes.
 
-Fill in the form:
+Then fill in the form:
 
 - **Site name** and **Base URL** (`/` or subdirectory path such as `/slocloud/`)
 - **Database driver:** `mssql`
@@ -133,7 +131,7 @@ Fill in the form:
 
 > **WARNING:** Database driver, database name, and table prefix are locked after installation. Changing them requires reinstalling.
 
-The installer creates the schema, seeds default data, generates encryption keys, and writes `config.yaml`. No manual key setup is required.
+The installer creates the schema, seeds default data, generates encryption keys and the LTI consumer credentials, and writes `config.yaml`. `key.yaml` is written to the keys folder and its location is saved as `security.key_path` in `config.yaml`, so nothing has to be moved afterwards. Copy the LTI consumer key and shared secret from the completion screen for section 8.
 
 Emergency access is disabled by default. If institutional policy requires it, provision a password hash through an approved break-glass procedure and store the source credential in the institution's offline password vault.
 
@@ -155,20 +153,17 @@ app:
 
 Revoke the setup-only DDL permissions from the application database user (`CREATE TABLE` and `ALTER ON SCHEMA::dbo`).
 
-### Harden the Encryption Key Location (Recommended)
+### Encryption Key Location
 
-The setup wizard writes `key.yaml` (the master encryption keys) to `src/config/`, **inside the web root**. This is intentional — it makes the default install work with zero extra configuration, and the folder is blocked from HTTP access by the shipped `src/config/.htaccess` and `src/config/web.config`.
+New installs keep `key.yaml` in the keys folder chosen during setup, outside the web root. The application looks for it in this order ([Config.php](../src/system/Core/Config.php), `keyPathCandidates()`):
 
-For production, best practice is to move the key **outside the web root** so it can never be exposed by a web-server misconfiguration, and point the application at the new location with an environment variable:
+1. The `SLOCloud_KEY_PATH` environment variable, if set (operator override).
+2. `security.key_path` in `config.yaml` (written by setup).
+3. `src/config/key.yaml`, then `src/key.yaml` (older installs, where setup wrote the key into the web root).
 
-1. Move the file, e.g. `C:\secrets\slocloud\key.yaml` (Windows) or `/etc/slocloud/key.yaml` (Linux), and restrict read access to the web-server/app-pool identity only.
-2. Set the environment variable **`SLOCloud_KEY_PATH`** to that absolute path. It is checked first in [Config.php](../src/system/Core/Config.php) — before the in-web-root fallback locations — so no code change is needed.
-   - **IIS:** `applicationHost.config` → the site's FastCGI app → `<environmentVariables>`:
-     `<add name="SLOCloud_KEY_PATH" value="C:\secrets\slocloud\key.yaml" />`, then recycle the app pool.
-   - **Linux php-fpm:** add `env[SLOCloud_KEY_PATH] = /etc/slocloud/key.yaml` to the pool config (php-fpm clears the environment by default, so a shell `export` will not reach it).
-3. Delete the copy left in `src/config/`, then confirm the app still loads and decrypts data.
+Key-rotation backups are written to a `backups` folder beside `key.yaml`.
 
-> **Note:** environment variable names are case-sensitive on Linux (`SLOCloud_KEY_PATH` exactly) but case-insensitive on Windows. If the variable is misnamed, the app silently falls back to the in-web-root `key.yaml` and appears to work — so verify by removing the in-root copy and confirming the app still runs. See [src/config/README.md](../src/config/README.md) for full details.
+**Moving the key later, or on an older install whose key is still in `src/config/`:** create the new folder outside the web root and restrict it to the web-server/app-pool identity (on Windows: Administrators, SYSTEM and the app pool with Modify; on Linux/macOS: `chmod 700`, owned by the web server account). Then use **System → Configuration → Encryption Keys Folder**: *Check Folder* tests the folder without changing anything, and *Move Keys Folder* (Maintenance Mode on) copies `key.yaml` and its `backups`, verifies the copies, sets `security.key_path`, confirms the application loads the new copy, and deletes the old ones. If `SLOCloud_KEY_PATH` is set, move the file by hand and update the variable instead. **System → System Status** reports *Key Location* as critical while any `key.yaml` remains inside the web root.
 
 ---
 
@@ -180,10 +175,7 @@ SLOCloud supports LTI 1.1.
 
 ### Finding Your Credentials
 
-1. Log in to SLOCloud administration and go to **System > LTI Configuration**.
-2. Create or locate the consumer record for your LMS.
-3. The **Consumer Key** and **Consumer Secret** displayed there are what you enter in your LMS when registering SLOCloud as an external tool.
-4. Set **LTI Version** to `1.1`.
+Setup generates the **Consumer Key** and **Shared Secret** (32 random bytes, stored encrypted) and shows them on its completion screen. They are also shown under **System > Configuration > LTI**. Enter them in your LMS when registering SLOCloud as an external tool, with **LTI Version** `1.1`. Do not replace the generated secret with a hand-typed one.
 
 ### What SLOCloud Provides to Your LMS
 
@@ -194,6 +186,28 @@ SLOCloud supports LTI 1.1.
 | Consumer Secret | From the SLOCloud admin record |
 
 Refer to your LMS documentation for how to register an external LTI tool.
+
+### Deploying to Canvas Courses
+
+For Canvas, **Administration > System > Deploy to Canvas** installs SLOCloud in courses for you. It adds an instructor-only course navigation tab and, optionally, an unpublished module link. Courses that already have SLOCloud are left alone, so a run can be repeated safely. To make SLOCloud available in every course at once, install it at the account level in Canvas (**Admin > Settings > Apps**) instead; the deploy page detects that and only adds module links.
+
+Before the first run:
+
+- Set `lti.launch_url` (absolute https), `lti.consumer_key`, and `lti.consumer_secret`. The page uses these exact values, so what it installs always matches signature validation.
+- Allow outbound HTTPS from the SLOCloud server to the Canvas host. The page uses the PHP `curl` extension, or PHP streams when `allow_url_fopen` is on.
+- On Windows, if **Test connection** reports a certificate error, set `curl.cainfo` and `openssl.cafile` in `php.ini` to a current CA bundle (for example `cacert.pem`) and restart IIS.
+- Create a Canvas account admin token used only for deployment. Canvas rate limits are per token, so a shared token competes with other integrations. The token is never saved; during a run the server holds only an encrypted copy.
+- Pair test with test and production with production. After a Canvas test instance is refreshed from production, test courses carry the production tool; the page leaves it alone and flags it.
+
+Running a deployment:
+
+1. Enter the Canvas URL and token, then choose **Test connection**. This also loads the term list.
+2. Choose the courses: a course by Canvas ID, a term, all active courses, or all courses including concluded ones.
+3. Run a **Dry run** first. It checks every course, reports SIS IDs that will not match an imported section, and writes nothing.
+4. Choose **Deploy**. Keep the tab open; the run is processed in short batches. If the tab closes, run the same selection again to continue.
+5. Review the results or download the CSV. Blueprint child courses are skipped; deploy to their Blueprint course and let sync apply it.
+
+Running a deployment or saving its defaults requires a global administrator. Only one deployment can run on a server at a time.
 
 ### Testing
 

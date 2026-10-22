@@ -18,7 +18,7 @@ database:
   # @required: true
   # @type: string
   # @default: localhost
-  # @validation: ^[a-zA-Z0-9.-]+$
+  # @validation: ^[a-zA-Z0-9._\\-]+$
   host: localhost
   
   # @label: Database Port
@@ -180,7 +180,7 @@ logging:
   # @description: Filesystem path where log files are written
   # @required: false
   # @type: string
-  # @default: (empty - uses the protected application data directory)
+  # @default:
   # @help: Set an absolute path outside the web root (e.g. /var/log/slocloud or C:\logs\slocloud). Leave empty to use the runtime-created logs directory beside the deployed application data.
   log_directory:
 
@@ -285,6 +285,15 @@ theme:
   # @default: theme-default
   # @help: Lightweight theme for LTI tools embedded in LMS iframes
   lti_theme: theme-default
+
+  # @label: Color Scheme
+  # @description: Brand colors for every theme
+  # @required: false
+  # @type: select
+  # @options: blue|Blue (default),teal|Teal,green|Green,maroon|Maroon,purple|Purple,slate|Slate gray,vault-tec|Vault-Tec,pip-boy|Pip-Boy green,brotherhood|Brotherhood of Steel,nuka-cola|Nuka-Cola,raiders|Raiders,ncr|New California Republic,enclave|Enclave,ocean|Ocean,midnight|Midnight,sunset|Sunset,pride|Pride rainbow,mocha|Mocha
+  # @default: blue
+  # @help: Colors buttons, links, badges, page headers and the administration menu on every page, including login and LTI pages. Every scheme keeps text readable (4.5:1 contrast).
+  color_scheme: blue
 
 # Email Configuration
 email:
@@ -467,6 +476,64 @@ lti:
   # @default: {COURSE}-{REST}
   # @help: Use {COURSE} to mark the course number token. {REST} captures and discards the remainder. Delimiter chars must not appear in the course number. Banner: "{COURSE}-{REST}" (e.g. COMM C110-45581 (Full Term)).
   course_label_format: "{COURSE}-{REST}"
+
+# Canvas Deployment
+# Defaults for Administration > Deploy to Canvas, which installs the LTI 1.1 tool
+# in Canvas courses. The Canvas API token is never stored here.
+canvas:
+  # @label: Canvas URL
+  # @description: The Canvas instance paired with this SLO Cloud server
+  # @required: false
+  # @type: string
+  # @help: The https address of your Canvas instance, for example https://college.instructure.com. Pair test SLO Cloud with test Canvas and production with production.
+  base_url:
+
+  # @label: Link Name
+  # @description: Name of the course navigation tab and module link
+  # @required: false
+  # @type: string
+  # @default: SLO Cloud Reporting
+  # @help: Shown to instructors, TAs, and designers only.
+  link_name: SLO Cloud Reporting
+
+  # @label: Add Module Link
+  # @description: Also add an unpublished module with a link to SLO Cloud
+  # @required: false
+  # @type: boolean
+  # @default: true
+  # @help: An existing module with the same name is reused.
+  create_module: true
+
+  # @label: Module Name
+  # @description: Name of the module that holds the SLO Cloud link
+  # @required: false
+  # @type: string
+  # @default: SLO Cloud
+  module_name: SLO Cloud
+
+  # @label: Delay Between Courses (ms)
+  # @description: Pause between courses during a deployment run
+  # @required: false
+  # @type: integer
+  # @default: 250
+  # @validation: min=0,max=10000
+  # @help: Raise this to go easier on Canvas during busy hours.
+  course_delay_ms: 250
+
+  # @label: Default Course Scope
+  # @description: Which courses a deployment run checks by default
+  # @required: false
+  # @type: select
+  # @options: course|Course by Canvas ID,term|Term,active|All active courses,all|All courses including concluded
+  # @default: active
+  default_scope: active
+
+  # @label: Default Course IDs or Term
+  # @description: Course IDs (comma-separated) or the term ID used with the default scope
+  # @required: false
+  # @type: string
+  # @help: Saved from the deployment page. Leave blank for the all-courses scopes.
+  default_scope_value:
 
 # SAML 2.0 Single Sign-On
 # Enables federated login via an external Identity Provider (IdP) such as Azure AD,

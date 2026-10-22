@@ -223,7 +223,9 @@
     document.addEventListener('input', (event) => {
         const control = event.target;
         if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement) {
-            if (control.checkValidity()) clearInvalidControl(control);
+            // validity.valid, not checkValidity(): the latter fires 'invalid' on every
+            // keystroke, which rebuilds the summary and pulls focus out of the field.
+            if (control.validity.valid) clearInvalidControl(control);
         }
     });
 
@@ -323,7 +325,15 @@
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
                     body: new URLSearchParams({ csrf_token: csrfToken })
                 });
-                if (!response.ok) throw new Error('Unable to extend session');
+                if (response.status === 401) {
+                    // The session already ended; the login page says why.
+                    const data = await response.json().catch(() => ({}));
+                    if (data.error === 'session_ended' && data.login_url) {
+                        window.location.href = data.login_url;
+                        return;
+                    }
+                }
+                if (!response.ok || response.redirected) throw new Error('Unable to extend session');
                 deadline = Date.now() + timeoutSeconds * 1000;
                 clearInterval(countdownTimer);
                 dialog.close();
@@ -345,5 +355,21 @@
             form.append(token); document.body.append(form); form.submit();
         });
         scheduleWarning();
+    }
+
+    // A session that has ended (2 hours idle or 20 hours after sign-in) answers background
+    // requests with 401 "session_ended". Go to the login page, which explains why, instead
+    // of letting tables report it as a DataTables "Ajax error".
+    if (window.jQuery) {
+        window.jQuery.ajaxPrefilter((options) => {
+            const original = options.error;
+            options.error = function (xhr, ...rest) {
+                if (xhr.status === 401 && xhr.responseJSON?.error === 'session_ended') {
+                    window.location.href = xhr.responseJSON.login_url;
+                    return;
+                }
+                [].concat(original || []).forEach((handler) => handler.call(this, xhr, ...rest));
+            };
+        });
     }
 })();

@@ -108,7 +108,7 @@ $dataQuery = "
     LEFT JOIN {$dbPrefix}users cu ON x.created_by_fk = cu.users_pk
     LEFT JOIN {$dbPrefix}users uu ON x.updated_by_fk = uu.users_pk
     {$finalWhereClause}
-    ORDER BY {$orderColumn} {$params['orderDir']}, x.crn ASC
+    ORDER BY {$orderColumn} {$params['orderDir']}" . ($orderColumn !== 'x.crn' ? ', x.crn ASC' : '') . "
     " . getPaginationClause($params['length'], $params['start']) . "
 ";
 $result = !empty($whereParams) ? $db->query($dataQuery, $whereParams, $whereTypes) : $db->query($dataQuery);

@@ -50,6 +50,10 @@ Documentation is organized into two categories:
 - [DYNAMIC_REPORTS.md](DYNAMIC_REPORTS.md) - Dynamic reporting subsystem
 - [UPDATE_WIZARD_DESIGN.md](UPDATE_WIZARD_DESIGN.md) - In-admin update wizard (schema-stable self-update vs. schema-changing guided update)
 
+## Upgrades (`upgrades/`)
+
+**Purpose**: Per-release database upgrade plans (preflight checks, steps, verification, rollback) for every release that changes the schema. Start at [upgrades/README.md](upgrades/README.md).
+
 ## Documentation Philosophy
 
 **Concepts are language-agnostic** - Can be implemented in any language while preserving architectural intent

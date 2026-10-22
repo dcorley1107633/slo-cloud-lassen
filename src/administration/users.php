@@ -18,7 +18,7 @@ $errorMessage = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     $action = $_POST['action'] ?? '';
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         [$fullName, $email, $passwordHash, $isActive],
                         'sssi'
                     );
-                    $newUserPk = (int)$db->lastInsertId();
+                    $newUserPk = $db->getInsertId();
                     $assignGlobalRole($newUserPk, $grantAdmin ? 'admin' : null);
                     $successMessage = 'User added successfully';
                 } else {

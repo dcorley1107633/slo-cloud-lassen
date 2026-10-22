@@ -54,6 +54,7 @@ header('Content-Type: text/html; charset=UTF-8');?>
     <?php if (isset($customCss)): ?>
     <?= $customCss ?>
     <?php endif; ?>
+    <?php require dirname(__DIR__, 5) . '/includes/color_scheme_style.php'; ?>
 </head>
 <body>
 

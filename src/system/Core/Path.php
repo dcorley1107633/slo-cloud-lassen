@@ -46,6 +46,9 @@ class Path
      */
     public static function setConfiguredBaseUrl(string $baseUrl): void
     {
+        // Links are built as BASE_URL . 'page.php', so "/slo" would produce
+        // "/slopage.php" on every page.
+        $baseUrl = rtrim($baseUrl, '/') . '/';
         self::$configuredBaseUrl = $baseUrl;
         self::$baseUrl = $baseUrl;
     }

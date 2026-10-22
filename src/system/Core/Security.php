@@ -28,6 +28,33 @@ final class Security
         return dirname($sourceRoot) . '/' . basename($sourceRoot) . '-data';
     }
 
+    /**
+     * True for D:\path, D:/path, \\server\share and /path. A relative configured
+     * directory would resolve against the requested script's folder in the web root.
+     */
+    public static function isAbsolutePath(string $path): bool
+    {
+        return preg_match('#^(?:[A-Za-z]:[\\\\/]|[\\\\/])#', $path) === 1;
+    }
+
+    /**
+     * Log directory from logging.log_directory, or <data>/logs when it is empty or
+     * not an absolute path, so a bad setting cannot move logs into the web root.
+     * A folder that does not exist and cannot be created (a missing drive, no
+     * permission for the app pool) also falls back: the logger cannot start
+     * without its folder, and every page would fail.
+     */
+    public static function logDirectory(mixed $configured, string $sourceRoot): string
+    {
+        if (is_string($configured) && self::isAbsolutePath(trim($configured))) {
+            $directory = rtrim(trim($configured), '/\\');
+            if (is_dir($directory) || @mkdir($directory, 0700, true)) {
+                return $directory;
+            }
+        }
+        return self::dataRoot($sourceRoot) . '/logs';
+    }
+
     public static function isHttps(array $server = []): bool
     {
         $server = $server ?: $_SERVER;

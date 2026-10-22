@@ -21,7 +21,7 @@ $studentEncryption = new StudentEncryption($config);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     $action = $_POST['action'] ?? '';
@@ -200,6 +200,10 @@ $enrollmentsRaw = $enrollmentsResult->fetchAll();
 // Decrypt student data for display
 $enrollments = [];
 foreach ($enrollmentsRaw as $enrollment) {
+    if (!is_string($enrollment['student_data_encrypted'] ?? null)) {
+        // Enrollment whose student row is gone (SQL Server schema has no FKs).
+        continue;
+    }
     try {
         $studentData = $studentEncryption->decryptStudentData($enrollment['student_data_encrypted']);
         $enrollments[] = [
@@ -340,7 +344,7 @@ $theme->showHeader($context);
                                 <option value="">Select Enrollment</option>
                                 <?php foreach ($enrollments as $enrollment): 
                                     $studentName = htmlspecialchars(($enrollment['last_name'] ?? '') . ', ' . ($enrollment['first_name'] ?? ''));
-                                    $displayText = htmlspecialchars($enrollment['term_code']) . ' CRN:' . htmlspecialchars($enrollment['crn']) . ' - ' . htmlspecialchars($enrollment['student_id'] ?? '') . ' (' . trim($studentName, ', ') . ')';
+                                    $displayText = htmlspecialchars($enrollment['term_code']) . ' CRN:' . htmlspecialchars($enrollment['crn'] ?? '') . ' - ' . htmlspecialchars($enrollment['student_id'] ?? '') . ' (' . trim($studentName, ', ') . ')';
                                 ?>
                                     <option value="<?= $enrollment['enrollment_pk'] ?>">
                                         <?= $displayText ?>
@@ -420,7 +424,7 @@ $theme->showHeader($context);
                                 <option value="">Select Enrollment</option>
                                 <?php foreach ($enrollments as $enrollment): 
                                     $studentName = htmlspecialchars(($enrollment['last_name'] ?? '') . ', ' . ($enrollment['first_name'] ?? ''));
-                                    $displayText = htmlspecialchars($enrollment['term_code']) . ' CRN:' . htmlspecialchars($enrollment['crn']) . ' - ' . htmlspecialchars($enrollment['student_id'] ?? '') . ' (' . trim($studentName, ', ') . ')';
+                                    $displayText = htmlspecialchars($enrollment['term_code']) . ' CRN:' . htmlspecialchars($enrollment['crn'] ?? '') . ' - ' . htmlspecialchars($enrollment['student_id'] ?? '') . ' (' . trim($studentName, ', ') . ')';
                                 ?>
                                     <option value="<?= $enrollment['enrollment_pk'] ?>">
                                         <?= $displayText ?>

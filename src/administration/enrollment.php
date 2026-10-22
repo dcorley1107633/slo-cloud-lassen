@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF validation
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     $action = $_POST['action'] ?? '';
@@ -68,7 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         's'
                     );
                     
-                    if ($studentResult->rowCount() === 0) {
+                    // rowCount() is -1 for a SELECT on SQL Server, so test the row itself.
+                    $student = fetch_row($studentResult);
+                    if (!$student) {
                         // Auto-create student with minimal data (C# only, no names yet)
                         $userId = getValidUserId();
                         $encrypted = $studentEncryption->encryptStudentData($studentCNum, '', '');
@@ -80,7 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         );
                         $studentFk = $db->getInsertId();
                     } else {
-                        $student = fetch_row($studentResult);
                         $studentFk = $student['students_pk'];
                     }
                     
@@ -93,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'ii'
                     );
                     
-                    if ($checkResult->rowCount() > 0) {
+                    if (fetch_row($checkResult)) {
                         $errors[] = 'Enrollment already exists for this student in this section';
                     } else {
                         // Insert enrollment

@@ -2,6 +2,392 @@
 
 ## Unreleased
 
+### Administration
+
+- Each file on Term Imports (Normalized) has an info button (ⓘ) next to its
+  name that shows what importing that file does, before you import it: which
+  records it adds, which it updates and how it matches them, which it skips,
+  and whether it creates missing parent records. It is the same summary the
+  progress window shows during an import, and its last line follows the
+  "Auto-create missing parent records" box. The hint opens on hover or
+  keyboard focus, stays open when clicked, and closes with Escape or a click
+  elsewhere.
+- The import summary now names every parent record that auto-create can add,
+  including their own parents. For example, a CSLO file whose course does
+  not exist yet also creates that course's department and term, and the
+  summary used to name only the course. This affects the PSLO,
+  Program-Course Mapping, CSLO, CSLO-PSLO Mapping and Section files. The
+  import itself is unchanged.
+
+## v5.2.5 (2026-10-20)
+
+### Administration
+
+- Theme choices (public, administration and LTI) are back on System >
+  Configuration, in a Theme Settings section, and the Theme Settings page is
+  gone. The `theme.*` values in `config.yaml` are unchanged.
+- There is a new System > Color Scheme page (administrators only) for the
+  Color Scheme setting, which is no longer on the Configuration page.
+- The Color Scheme setting offers 18 schemes in three groups:
+  Standard (Blue, the default and unchanged; Teal, Green, Maroon, Purple,
+  Slate gray), Fallout (Vault-Tec, Pip-Boy green, Brotherhood of Steel, Nuka-Cola,
+  Raiders, New California Republic, Enclave; each has a fourth, light
+  highlight color used on the dark menu, such as Vault-Tec yellow) and Other
+  (Ocean, Midnight, Sunset, Mocha, Pride rainbow, which also adds a rainbow
+  bar along the top of every page and under the menu brand). A scheme applies to every user and every theme,
+  including the login page and LTI pages, and recolors buttons, links,
+  badges, alerts, pagination, progress bars, checked boxes, page header
+  colors and the administration sidebar menu (Blue keeps the original dark
+  gray menu). Schemes are chosen from color swatches, and choosing one
+  previews it on the page immediately, including the menu, and a panel of
+  static samples shows every element it recolors, including the highlight; it is applied to
+  everyone only when Save Color Scheme is used.
+- Every scheme keeps text readable: white text on scheme colors, and scheme
+  colored links on white, light gray and striped table rows, are at least
+  4.5:1. Keyboard focus outlines keep their existing dark blue in every
+  scheme.
+- The setting is saved as `theme.color_scheme` in `config.yaml`. Existing
+  installs stay Blue until it is changed.
+- Each file on Administration > Term Imports (Normalized) now has a
+  "Download sample" link to an example CSV showing the expected columns. The
+  samples moved from `docs/sample_data` to `assets/sample_data` so they are
+  served with the application.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.5. They record the Color Scheme setting (contrast of every scheme
+  checked at 4.5:1 or better; focus outlines unchanged; the sidebar menu uses
+  each scheme's dark color behind white text; swatch choice with live preview;
+  the setting has its own Color Scheme page)
+  and the sample
+  download links on Term Imports (Normalized). Criterion results are carried
+  forward from the 5.1.0 evaluation.
+
+### Upgrading
+
+- No database changes; the schema version stays 5.2.1, so there is no
+  migration to run.
+- Replace the application files. Existing installs stay on the Blue color
+  scheme until System > Color Scheme is changed. The old Theme Settings page
+  (`administration/theme_settings.php`) is removed; theme choices are on
+  Configuration.
+- The sample import files now live in `assets/sample_data`; the copy in
+  `docs/sample_data` is gone.
+
+## v5.2.4 (2026-10-20)
+
+### Administration
+
+- The Activity Log now records sign-ins (password, emergency administrator,
+  single sign-on and from the LMS), failed sign-ins, sign-outs, and sessions
+  that end on their own (2 hours idle, 20 hours after sign-in, account
+  deactivated). Before, these went only to a text log file, so the Activity
+  Log showed refusals with no sign-in before them.
+- A new Details column says why in plain words, for example "Wrong password",
+  "Signed out after 2 hours idle" or "Administrator role required". It is
+  also in the CSV export.
+- Ordinary refusals (a page your role does not allow, an expired form, Key
+  rotation with Maintenance Mode off) are no longer marked "threat"; they show
+  as "denied" or "failed". "Threat" is kept for requests to pages the
+  application does not have, repeated failed sign-ins and an unauthenticated
+  key rotation attempt. Refusals recorded before this release for an ordinary
+  reason also show as "denied".
+- Importing a file on Term Imports (Normalized) now opens a progress window
+  that blocks the rest of the page until the import finishes, so nothing can
+  be clicked or changed while the page is about to reload with the results.
+  Before, only the button's spinner showed, and it often did not move. The
+  window shows:
+  - the time elapsed, inside the spinner;
+  - the two steps, uploading the file and importing its records, with the
+    upload's progress;
+  - what the import does with that file, in plain words: which records it
+    adds, which it updates and how it matches them, which it skips, and
+    whether it creates missing parent records (from the "Auto-create missing
+    parent records" box);
+  - how long the import usually takes for a file that size, with the time
+    left, once this server has imported that file before.
+  If the import fails or the connection drops, the window says so and can be
+  closed. An expired form shows "This form has expired" there instead of a
+  bare error.
+- Import results now say how long the import took, for example "FILE 6
+  (Course) import: 120 imported/updated, 0 skipped (took 8.0 seconds)". An
+  import that fails after running for a while says how long it ran.
+- The time each successful import takes, with the file's size and number of
+  rows, is kept on the server in `<data>/var/import_timings.json` (the last
+  20 per file) and is used only for the estimate. No student data is stored
+  in it, and it is safe to delete; estimates start again from the next
+  import.
+- System > Configuration has a new Encryption Keys Folder section. It shows
+  the `key.yaml` in use and what set its location (`security.key_path` in
+  `config.yaml`, the `SLOCloud_KEY_PATH` environment variable, or the old
+  default inside the web root), and warns when it is inside the web root.
+- An administrator can move the keys to another folder from that section.
+  Check Folder tests a folder without changing anything. The folder must
+  already exist, sit outside the web root, hold no `key.yaml` or `backups`
+  folder yet, and let the web server account write, read and delete files
+  there; on Linux and macOS it must not be writable by every account. Create
+  it first and restrict it: on Windows to Administrators, SYSTEM and the
+  application pool, on Linux and macOS to the web server account (for
+  example `chmod 700`).
+- Move Keys Folder needs Maintenance Mode, like key rotation, and cannot run
+  at the same time as a rotation. It copies `key.yaml` and the key rotation
+  backups beside it, checks each copy against the original, saves the new
+  path as `security.key_path` in `config.yaml`, checks SLO Cloud now loads
+  the key from there, and only then deletes the old copies. If any step
+  before the delete fails, everything is left as it was. Other files in the
+  old folder, and the folder itself, are kept. Moves are recorded on the
+  Activity Log.
+- Older installs whose `key.yaml` is still in `src/config/` can use it to
+  move the key out of the web root; the move adds `security.key_path` to
+  `config.yaml`. The move is not available while `SLOCloud_KEY_PATH` is set,
+  because that variable overrides `config.yaml`; move the file and update
+  the variable on the server instead.
+- Theme settings (the themes for public, administration and LTI pages) have
+  their own page, System > Theme Settings, for administrators. They are no
+  longer on the Configuration page, and saving the Configuration page no
+  longer changes them. The page is also in the Metis administration menus,
+  the user menu and the Site Map.
+
+### Accessibility
+
+- The accessibility report pages no longer show ratings for 5.0.0 and 5.0.0
+  Beta. Like 5.0.1, their supporting evidence was not retained, so they are
+  marked "Historical claim; evidence not retained". Their report links led to
+  "Document not found" because those reports were never kept. The earlier
+  Level AAA "Partial" figures are withdrawn with them; the current reports
+  cover Level A and AA.
+- Loading spinners keep turning, more slowly, when the operating system's
+  "Reduce motion" setting is on. The setting stopped every spinner, so a page
+  that was still working looked frozen.
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.4. They record the Activity Log's Details column, the import
+  progress window, the Encryption Keys Folder section, the Theme Settings
+  page, and spinners that keep turning slowly under "Reduce motion" (2.2.2
+  Pause, Stop, Hide). The LTI assessment entry pages did not change.
+  Criterion results are carried forward from the 5.1.0 evaluation.
+
+### Upgrading
+
+- No database changes; the schema version stays 5.2.1, so there is no
+  migration to run.
+- On Windows Server, rerun `Install-SLOCloud5.ps1` from the 5.2.4
+  `automation` folder. Otherwise replace the application files.
+- Theme settings already in `config.yaml` are kept. Change them on System >
+  Theme Settings from now on.
+- The Activity Log shows sign-ins, sign-outs and session endings from the
+  upgrade onwards; earlier ones are only in the text log files.
+- If System > System Status reports Key Location as critical, the key is
+  still inside the web root. Create a folder outside it, restrict its
+  access, turn on Maintenance Mode and use Move Keys Folder on System >
+  Configuration. If you move the keys out of the installer's `secrets`
+  folder on Windows Server, the installer and `Test-SLOCloud5.ps1` still
+  manage and check only `secrets`.
+
+## v5.2.3 (2026-10-09)
+
+### Fixes
+
+- Saving System > Configuration no longer takes the whole site down. The Log
+  Directory box showed its help text as the current value, and saving any
+  setting stored that text as the log folder; every page then failed with an
+  empty HTTP 500 and nothing in the logs. The box is now empty by default,
+  saving rejects a Log Directory that is not a full path, and the application
+  ignores a non-absolute log folder (including the stored help text) and logs
+  to the data folder instead.
+- Removed the 15-minute "recent login" requirement. Fifteen minutes after
+  signing in, saving on System > Users or System > Configuration, loading the
+  Users list, running a Canvas deployment and rotating keys all failed with a
+  generic "Access Denied" (or "DataTables warning: Ajax error") while every
+  other action kept working. An administrator can now do everything the role
+  allows for as long as the session is valid.
+- Sessions now end cleanly instead: after 2 hours idle (as before, with a
+  warning that lets you continue) or 20 hours after sign-in. Twenty hours is
+  the shortest fixed limit WCAG 2.2.1 (Timing Adjustable) allows without an
+  option to extend it. You are signed out, the login page says why, and after
+  signing in you return to the page you were on. Tables that load in the
+  background go to the login page instead of showing an "Ajax error".
+- Refusals say why. "Only administrators can do this" replaces the generic
+  "Access Denied" page on administration pages and the API, and an expired
+  form now says "This form has expired. Reload the page and try again."
+- Setup no longer crashes on its last step under PHP 8, so the completion
+  screen with the LTI key and secret is shown again. Installs that hit the
+  crash were complete; the key and secret are under System > Configuration >
+  LTI.
+- Typing in a form field that is not valid yet (an email address without @, a
+  password under 12 characters) no longer moves focus to the error summary on
+  every keystroke. This affected every form.
+- Choosing "Server Mail" in setup no longer leaves a site where no page loads.
+  Setup saved the choice as `server`, which the configuration rules reject,
+  so every page failed with an HTTP 500 right after setup. It is now saved as
+  `mail` (PHP mail()), and existing configurations with `server` load as
+  `mail`.
+- Setup checks the database host, SMTP port and other values it is about to
+  write against the configuration rules before it creates anything, so a
+  value the rules reject is reported on the setup form instead of breaking
+  every page after setup finishes.
+- A SQL Server named instance (for example `SQL01\SQLEXPRESS`) is accepted as
+  the database host. It was rejected when saving System > Configuration and,
+  when entered in setup, stopped every page from loading.
+- System > Configuration tests changed database host, port, username or
+  password before saving and refuses settings that cannot connect, instead of
+  saving them and taking every page down.
+- A Log Directory that does not exist and cannot be created (a missing
+  drive, no permission for the app pool) no longer stops every page from
+  loading. Saving one on System > Configuration is refused, and an existing
+  one is ignored in favour of the data folder's `logs` folder.
+- A Base URL Path without a trailing slash (for example `/slo`) no longer
+  breaks every link and stylesheet; the slash is added.
+- Clearing a number box on System > Configuration keeps that setting's
+  default instead of saving 0 and refusing the whole save.
+- When config.yaml cannot be loaded, pages show a "Configuration Error" page
+  instead of an empty HTTP 500, and the reason is written to `php_errors.log`
+  in the data folder's `logs` folder.
+- Setup's "could not open database" message now gives SQL Server steps
+  (create the database, add the login with db_owner, or db_ddladmin plus read
+  and write) instead of hosting control panel advice, and is no longer
+  escaped twice.
+- Pages that load in the background no longer show "Invalid JSON response" or
+  an empty error when you are signed out or an unexpected error occurs; they
+  go to the login page or show a short error message. Key rotation now shows
+  the server's reason when it is refused.
+- Rotating the configuration encryption key on System > Configuration left
+  every encrypted setting, including the database password, unreadable, so no
+  page could load. Rotation now re-encrypts every encrypted setting and
+  refuses to run if it cannot account for all of them.
+
+#### SQL Server
+
+- Export All (CSV, Copy, Print) on the administration tables returned nothing
+  or failed; it now exports every row.
+- Cross-listed Sections could not be sorted by CRN.
+- Add Enrollment never created a new student and never detected a duplicate
+  enrollment.
+- Clear Term Data always rolled back because of an error in the program
+  outcomes step; it now clears them with the rest of the term.
+- Column filters on Courses, Disciplines, Programs, Program Outcomes and
+  Institutional Outcomes failed; Institutional Outcomes' Created By and
+  Updated By columns pointed at columns that do not exist.
+- Custom reports can total and average yes/no fields.
+
+#### PHP 8
+
+- Institutional Outcomes, Program Outcomes and SLO tables failed to load when
+  a code looked like a number (for example "1.1"), and a code like "1.10" was
+  shown as "1.1".
+- Sections without a CRN broke the Enrollment and Assessments tables and the
+  Assessments add and edit lists; an enrollment whose student record is
+  missing is now skipped instead of breaking the page.
+- Add User failed after saving and never assigned the Administrator role.
+- Add Student failed.
+- A database error during single sign-on produced an HTTP 500 instead of an
+  error message.
+- On the LTI assessment page, saved assessment methods and improvement
+  strategies never loaded, so saving again overwrote them.
+
+### Security Fixes
+
+- The status API (`api/api.php`) accepted an empty `X-Api-Key` header when
+  the Monitoring API Key was empty, which is how saving System >
+  Configuration stored it. An empty key is now never accepted.
+
+### Installation
+
+- The installer grants the app pool read & execute on the install root folder
+  itself (not inherited). Without it PHP cannot resolve paths under the root
+  on Windows and setup reports the keys folder as missing.
+- Preflight asks for confirmation before changing a machine-level
+  `SLOCLOUD_DATA_PATH` or `SLOCLOUD_ENV` that is already set to a different
+  value.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.3. They record the form-validation focus fix, the clearer refusal
+  and session-ended messages, and the 20-hour maximum session length under
+  2.2.1 Timing Adjustable (WCAG's 20-hour exception; the two-hour inactivity
+  timeout can still be extended from its warning). Criterion results are
+  carried forward from the 5.1.0 evaluation.
+
+### Upgrading
+
+- No database changes; the schema version stays 5.2.1, so there is no
+  migration to run.
+- On Windows Server, rerun `Install-SLOCloud5.ps1` from the 5.2.3
+  `automation` folder; it fetches the release and deploys it. Run the 5.2.3
+  installer, not an older copy: older installers remove the install-root
+  permission added in this release. If `web.config` was edited by hand, add
+  `-OverwriteModifiedWebFiles` (the edited file is backed up first).
+- Otherwise replace the application files. `web.config` changed in this
+  release.
+- If System > Configuration was saved under 5.2.2, Log Directory may hold the
+  text "(empty - uses the protected application data directory)". 5.2.3
+  ignores it and logs to the data folder; clear the box on System >
+  Configuration to tidy it up.
+- Signed-in users stay signed in through the upgrade. Their 20-hour session
+  limit starts counting from the first page they open afterwards.
+- Users added on System > Users before 5.2.3 were saved without the
+  Administrator role even when its box was ticked. Check the role of every
+  user added since installation on System > Users.
+
+## v5.2.2 (2026-09-30)
+
+### Administration
+
+- Added Administration > Deploy to Canvas for global administrators. It uses a
+  Canvas account admin token to install the SLO Cloud LTI 1.1 tool in a course
+  by ID, a term, all active courses, or all courses, as an instructor-only
+  course navigation tab with an optional unpublished module link. Courses that
+  already have the tool (directly or from their account) are left alone, so
+  runs are safe to repeat; Blueprint child courses are skipped. A dry run
+  reports what would change, and results download as CSV with SIS ID checks
+  against imported sections. The token is never saved: during a run only an
+  encrypted copy is held, and runs are processed in short batches that stay
+  within IIS time limits. Defaults are kept in the new `canvas:` configuration
+  section. No database changes.
+- The LTI page links to Deploy to Canvas, and the page is listed in the
+  administration navigation and site map. Its defaults are edited under
+  System > Configuration > Canvas Deployment Settings.
+
+### Installation
+
+- Added a Windows Server installer in `automation/`. `Install-SLOCloud5.ps1`
+  prepares the web node:
+  - IIS and PHP 8.3 FastCGI, with `pdo_sqlsrv` and `yaml`;
+  - the `repo`, `web`, `secrets`, `data` and `backup` folders, with
+    least-privilege permissions;
+  - the environment variables the application reads;
+  - a localhost-only HTTPS binding with a self-signed certificate;
+  - the application files, deployed from a Git commit.
+
+  It then hands over to the setup wizard. `-Plan` previews every change
+  without making it, and every change is recorded in a journal first, so
+  `Undo-SLOCloud5.ps1` can roll back a run or uninstall. Databases, keys,
+  configuration and data are always kept. `Test-SLOCloud5.ps1` validates the
+  result independently. It never asks for SQL credentials and never reads
+  secret files. See [automation/README.md](../automation/README.md).
+- `docs/SYSTEM_REQUIREMENTS.md` and `src/setup/README.md` now describe the
+  current setup flow (keys-folder verification code instead of a setup
+  token) and the installer's folder layout.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.2. The new Deploy to Canvas page has not yet been independently
+  evaluated; criterion results are carried forward from the 5.1.0
+  evaluation.
+
+### Upgrading
+
+- No database changes; the schema version stays 5.2.1, so there is no
+  migration to run.
+- Replace the application files. The new `canvas:` settings take their
+  defaults from `config.yaml.template` automatically.
+
+## v5.2.1 (2026-09-26)
+
+### Reports
+
 - Added live orphaned-enrollment summary and detail reports for reviewing
   retained section-migration exceptions without deleting them.
 - Custom reports can now start from the record type they need to preserve,
@@ -10,6 +396,41 @@
   remain non-relational; the catalog cannot recreate Enrollment -> Course.
 - Cyclic report join graphs are rejected before SQL generation to prevent
   duplicate aliases, row fan-out, and gateway timeouts.
+
+### Setup
+
+- Setup no longer needs a token from the command line. Open `/setup/` from
+  the server itself (localhost, or an address listed in
+  `SLOCLOUD_SETUP_ALLOWED_IPS`), enter a folder outside the web root for the
+  encryption keys, and paste back the verification code setup writes there.
+  `key.yaml` is created in that folder and its location is recorded as
+  `security.key_path` in `config.yaml`, so nothing has to be moved after
+  install. `system/scripts/create_setup_token.php` has been removed.
+- Setup generates the LTI consumer key and shared secret (32 random bytes),
+  stores the secret encrypted, and shows both on the completion screen and
+  under System > Configuration > LTI for copying into the LMS.
+- The application, key rotation, and the status API now share one key lookup
+  order: `SLOCloud_KEY_PATH`, then `security.key_path`, then the old
+  `src/config/key.yaml` and `src/key.yaml` locations. Key-rotation backups are
+  written beside `key.yaml` instead of into the web root.
+
+### Upgrading
+
+This release changes the database schema. Follow
+[docs/upgrades/Ver5.1.1_to_5.2.1.md](../docs/upgrades/Ver5.1.1_to_5.2.1.md)
+(and the 5.1.0 -> 5.1.1 plan if the database has never been versioned).
+
+- Schema changes now ship as versioned migration files in
+  `src/system/database/migrations/` for MySQL and SQL Server, each with an
+  upgrade plan in `docs/upgrades/`. Apply them with
+  `php src/system/scripts/apply_migration.php`, which reads the database's
+  recorded schema version, applies the pending files in order with the
+  configured table prefix, and requires Maintenance Mode.
+- The database now records its schema version in a new `meta` table.
+- Fresh SQL Server installs now include the record lifecycle columns that the
+  MySQL schema already had.
+- The migration converts existing "Pending" achievement levels (and empty
+  values) to "Not Assessed".
 
 ### New Features
 
@@ -38,6 +459,12 @@
 
 ### Improvements
 
+- The "Pending" assessment achievement level is renamed "Not Assessed" and is
+  the default for new assessments; achievement level can no longer be empty.
+- A failed LTI launch signature check now shows a page explaining the likely
+  cause (consumer key, shared secret, or launch URL in the LMS not matching
+  SLO Cloud) and what to do next. On IIS, `web.config` passes this page
+  through instead of replacing it with the generic 401 error page.
 - Custom report limits are now configurable instead of hardcoded: the new
   `reports` section of `config.yaml` (also on the System Configuration page)
   sets the maximum and default row limits, the multi-select option search
@@ -69,6 +496,31 @@
   added accessible names, expanded-state announcements, live loading and error
   messages, scoped table headings and captions, keyboard-scrollable dependency
   regions, and text labels that do not rely on color alone.
+
+- Custom Report builder accessibility: display-column and filter rows are
+  identified by a row header and every row control is named by its column
+  header and field; joined-table checkboxes are grouped under a legend;
+  Break and Summarize instructions are visible text instead of hover-only
+  tooltips; keyboard focus is kept on the equivalent control when rows are
+  re-rendered, moved, or removed; and additions, moves, and removals are
+  announced to screen readers.
+
+### Security Fixes
+
+- Every encryption key rotation (config, student data, and student lookup)
+  now requires Maintenance Mode, not only the student lookup key. The API
+  rejects the request and the Configuration page disables the rotate buttons
+  while Maintenance Mode is off.
+- System Status has a new Key Location check that reports critical when any
+  `key.yaml` (the active key, a `SLOCloud_KEY_PATH` target, or a key-rotation
+  backup) is inside the web root or the site's document root.
+- The status API's overall status is now decided by which check failed, not
+  by how many: a failing configuration, PHP extension, session, or database
+  check reports `down` on its own, and any other problem reports `degraded`.
+  A database connection failure previously reported only `degraded`.
+- The status API's OAuth and debug-mode checks now read the settings the
+  application uses (`lti.validate_signatures`, `app.debug_mode`); before,
+  they read keys that did not exist and never appeared.
 
 ## v5.1.1 (2026-07-20)
 

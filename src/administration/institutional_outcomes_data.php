@@ -34,9 +34,9 @@ $columns = [
     'io.outcome_description',
     'io.sequence_num',
     'io.created_at',
-    'created_by',
+    'u_created.full_name',
     'io.updated_at',
-    'updated_by',
+    'u_updated.full_name',
     'actions' // Not sortable, placeholder
 ];
 
@@ -104,6 +104,8 @@ $countQuery = "
     SELECT COUNT(*) as total 
     FROM {$dbPrefix}institutional_outcomes io
     LEFT JOIN {$dbPrefix}terms t ON io.term_fk = t.terms_pk
+    LEFT JOIN {$dbPrefix}users u_created ON io.created_by_fk = u_created.users_pk
+    LEFT JOIN {$dbPrefix}users u_updated ON io.updated_by_fk = u_updated.users_pk
     {$whereClause}
 ";
 if (!empty($whereParams)) {

@@ -288,6 +288,13 @@ function getValidUserId(): int {
  */
 function getPaginationClause(int $limit, int $offset): string {
     global $db;
+
+    // DataTables sends length -1 for "all rows" (the Export All buttons).
+    // FETCH NEXT -1 ROWS and LIMIT -1 are both SQL errors.
+    if ($limit < 1) {
+        return '';
+    }
+    $offset = max(0, $offset);
     
     $isSqlServer = ($db->getDriver() === 'mssql' || $db->getDriver() === 'sqlsrv');
     

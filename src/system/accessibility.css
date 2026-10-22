@@ -209,6 +209,14 @@ fieldset,
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+
+    /* Busy spinners are status indicators, so keep them turning, just slower. */
+    .spinner-border,
+    .spinner-grow,
+    .fa-spin {
+        animation-duration: 1.5s !important;
+        animation-iteration-count: infinite !important;
+    }
 }
 
 @media (forced-colors: active) {

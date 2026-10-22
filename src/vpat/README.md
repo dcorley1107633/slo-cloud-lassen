@@ -10,30 +10,30 @@ A VPAT (Voluntary Product Accessibility Template) is a standardized document for
 
 Our VPATs document conformance to:
 
-- **WCAG 2.2** (Web Content Accessibility Guidelines) - Levels A, AA, and AAA
+- **WCAG 2.2** (Web Content Accessibility Guidelines) - Levels A and AA. Level AAA has not been evaluated since 5.1.0, so no AAA conformance is claimed.
 - **Section 508** (U.S. federal accessibility standards)
 - **EN 301 549** (European accessibility standard for ICT products and services)
 
 ## Available VPATs
 
-### [Assessment Page VPAT](assessment-page-vpat-v5.1.1.md)
+### [Assessment Page VPAT](assessment-page-vpat-v5.2.5.md)
 
 **Component:** LTI Assessment Entry Interface  
 **Status:** WCAG 2.2 Level AA supports conformance in the evaluated SLOCloud scope
 
-**Last Updated:** July 20, 2026
+**Last Updated:** October 20, 2026
 
 **Summary:**
 - All 55 Level A/AA criteria are recorded as `Supports` or `Not Applicable`
 - Source, regression, computed-contrast, and targeted browser evidence is linked
 - Independent assistive-technology and deployment validation remains a release-quality gate
 
-### [Admin Interface VPAT](admin-interface-vpat-v5.1.1.md)
+### [Admin Interface VPAT](admin-interface-vpat-v5.2.5.md)
 
 **Component:** Administrative Dashboard and CRUD Pages  
 **Status:** WCAG 2.2 Level AA supports conformance in the evaluated SLOCloud scope
 
-**Last Updated:** July 20, 2026
+**Last Updated:** October 20, 2026
 
 **Summary:**
 - All 55 Level A/AA criteria are recorded as `Supports` or `Not Applicable`

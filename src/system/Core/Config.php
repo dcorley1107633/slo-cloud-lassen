@@ -175,12 +175,7 @@ class Config
             throw new RuntimeException('LTI signature validation can be disabled only in the test environment.');
         }
 
-        $keyPaths = [];
-        $environmentPath = getenv('SLOCloud_KEY_PATH');
-        if (is_string($environmentPath) && $environmentPath !== '') $keyPaths[] = $environmentPath;
-        $keyPaths[] = dirname($this->configPath) . '/key.yaml';
-        $keyPaths[] = dirname(dirname($this->configPath)) . '/key.yaml';
-        foreach (array_unique($keyPaths) as $keyPath) {
+        foreach ($this->keyPathCandidates() as $keyPath) {
             if (!is_file($keyPath)) continue;
             $keyData = $this->parseYaml((string)file_get_contents($keyPath), $keyPath);
             $configKey = (string)($keyData['encryption_key'] ?? '');
@@ -282,32 +277,45 @@ class Config
     }
     
     /**
+     * Every place key.yaml may live, in the order they are tried.
+     *
+     * 1. SLOCloud_KEY_PATH environment variable (operator override)
+     * 2. security.key_path in config.yaml (written by setup; outside the web root)
+     * 3. Same directory as config.yaml (installs from before key_path existed)
+     * 4. One directory up from config.yaml
+     *
+     * @return string[] Candidate paths; the first one that exists is used
+     */
+    public function keyPathCandidates(): array
+    {
+        $keyPaths = [];
+
+        $environmentPath = getenv('SLOCloud_KEY_PATH');
+        if (is_string($environmentPath) && $environmentPath !== '') {
+            $keyPaths[] = $environmentPath;
+        }
+
+        $configuredPath = $this->getRaw('security.key_path', '');
+        if (is_string($configuredPath) && $configuredPath !== '') {
+            $keyPaths[] = $configuredPath;
+        }
+
+        $configDir = dirname($this->configPath);
+        $keyPaths[] = $configDir . '/key.yaml';
+        $keyPaths[] = dirname($configDir) . '/key.yaml';
+
+        return array_values(array_unique($keyPaths));
+    }
+
+    /**
      * Load master encryption key from key.yaml
-     * 
-     * Searches for key.yaml in multiple locations (in order):
-     * 1. Path specified in SLOCloud_KEY_PATH environment variable
-     * 2. Same directory as config.yaml
-     * 3. One directory up from config.yaml (outside web root)
-     * 
+     *
      * @return string Encryption key (64 hex chars) or empty string
      */
     private function loadMasterKey(): string
     {
-        $keyPaths = [];
-        
-        // 1. Environment variable override
-        $envPath = getenv('SLOCloud_KEY_PATH');
-        if ($envPath !== false && !empty($envPath)) {
-            $keyPaths[] = $envPath;
-        }
-        
-        // 2. Same directory as config.yaml
-        $configDir = dirname($this->configPath);
-        $keyPaths[] = $configDir . '/key.yaml';
-        
-        // 3. One directory up (outside web root if config is in src/config/)
-        $keyPaths[] = dirname($configDir) . '/key.yaml';
-        
+        $keyPaths = $this->keyPathCandidates();
+
         // Try each path
         foreach ($keyPaths as $keyPath) {
             if (!file_exists($keyPath)) {
@@ -416,10 +424,21 @@ class Config
 
     private function validateSchema(array $config): void
     {
-        $templatePath = dirname($this->configPath) . '/config.yaml.template';
+        self::validateAgainstTemplate($config, dirname($this->configPath) . '/config.yaml.template');
+    }
+
+    /**
+     * Apply the template's type, option and format rules to $config. Every page
+     * loads configuration through these rules, so setup checks the values it is
+     * about to write with this before creating anything.
+     *
+     * @throws RuntimeException naming the first field that does not match
+     */
+    public static function validateAgainstTemplate(array $config, string $templatePath): void
+    {
         $schema = self::schemaFromTemplate($templatePath);
         foreach ($schema as $path => $metadata) {
-            $value = $this->valueAtPath($config, $path, $found);
+            $value = self::valueAtPath($config, $path, $found);
             if (!$found) {
                 continue; // Older deployments receive missing fields from template defaults.
             }
@@ -460,13 +479,19 @@ class Config
                 }
             }
             if (isset($metadata['validation'])) {
-                $this->validateFieldConstraint($path, $value, $metadata['validation']);
+                self::validateFieldConstraint($path, $value, $metadata['validation']);
             }
         }
     }
 
     private function normalizeLegacySchemaTypes(array &$config): void
     {
+        // Setup up to 5.2.2 saved its "Server Mail" choice as "server", which the
+        // template has never accepted; it means PHP mail().
+        if (($config['email']['method'] ?? null) === 'server') {
+            $config['email']['method'] = 'mail';
+        }
+
         $templatePath = dirname($this->configPath) . '/config.yaml.template';
         foreach (self::schemaFromTemplate($templatePath) as $path => $metadata) {
             if (($metadata['type'] ?? '') !== 'boolean') {
@@ -488,7 +513,7 @@ class Config
         }
     }
 
-    private function valueAtPath(array $config, string $path, ?bool &$found): mixed
+    private static function valueAtPath(array $config, string $path, ?bool &$found): mixed
     {
         $current = $config;
         foreach (explode('.', $path) as $part) {
@@ -502,7 +527,7 @@ class Config
         return $current;
     }
 
-    private function validateFieldConstraint(string $path, mixed $value, string $constraint): void
+    private static function validateFieldConstraint(string $path, mixed $value, string $constraint): void
     {
         if (is_int($value)) {
             if (preg_match('/(?:^|,)min=(\d+)/', $constraint, $match) && $value < (int)$match[1]) {
@@ -601,21 +626,8 @@ class Config
      */
     private function loadStudentEncryptionKey(): string
     {
-        $keyPaths = [];
-        
-        // 1. Environment variable override
-        $envPath = getenv('SLOCloud_KEY_PATH');
-        if ($envPath !== false && !empty($envPath)) {
-            $keyPaths[] = $envPath;
-        }
-        
-        // 2. Same directory as config.yaml
-        $configDir = dirname($this->configPath);
-        $keyPaths[] = $configDir . '/key.yaml';
-        
-        // 3. One directory up
-        $keyPaths[] = dirname($configDir) . '/key.yaml';
-        
+        $keyPaths = $this->keyPathCandidates();
+
         // Try each path
         foreach ($keyPaths as $keyPath) {
             if (!file_exists($keyPath)) {
@@ -658,18 +670,7 @@ class Config
      */
     private function loadStudentLookupKey(): string
     {
-        $keyPaths = [];
-
-        $envPath = getenv('SLOCloud_KEY_PATH');
-        if ($envPath !== false && !empty($envPath)) {
-            $keyPaths[] = $envPath;
-        }
-
-        $configDir = dirname($this->configPath);
-        $keyPaths[] = $configDir . '/key.yaml';
-        $keyPaths[] = dirname($configDir) . '/key.yaml';
-
-        foreach ($keyPaths as $keyPath) {
+        foreach ($this->keyPathCandidates() as $keyPath) {
             if (!file_exists($keyPath)) {
                 continue;
             }
@@ -804,6 +805,25 @@ class Config
         $this->setNestedValue($this->config, $keys, $value);
     }
     
+    /**
+     * Remove a configuration value, so it reads as never set.
+     *
+     * @param string $key Dot-notation key (e.g., 'security.key_path')
+     */
+    public function remove(string $key): void
+    {
+        $keys = explode('.', $key);
+        $last = array_pop($keys);
+        $current = &$this->config;
+        foreach ($keys as $part) {
+            if (!isset($current[$part]) || !is_array($current[$part])) {
+                return;
+            }
+            $current = &$current[$part];
+        }
+        unset($current[$last]);
+    }
+
     /**
      * Save configuration to YAML file
      * 

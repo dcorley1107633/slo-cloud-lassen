@@ -71,9 +71,8 @@ try {
     $userEmail  = $attributes['email'];
     $userName   = $attributes['name'];
 } catch (Exception $e) {
-    Logger::getInstance()->warning('SAML response validation failed: ' . $e->getMessage(), [
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    ]);
+    Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on failed: the identity provider response could not be validated',
+        null, null, 'warning', false, ['reason' => 'saml_invalid_response', 'method' => 'saml']);
 
     // Do not expose internal validation details to the browser
     samlError('SSO login failed: the Identity Provider response could not be validated. Please contact your administrator.');
@@ -90,7 +89,7 @@ try {
     );
     $user = fetch_row($result);
 } catch (Exception $e) {
-    Logger::getInstance()->error('SAML DB lookup error: ' . $e->getMessage(), [
+    Logger::getInstance()->warning('SAML DB lookup error: ' . $e->getMessage(), [
         'email' => $userEmail,
         'ip'    => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
     ]);
@@ -99,26 +98,20 @@ try {
 
 // User not in the database
 if (!$user) {
-    Logger::getInstance()->warning('SAML login: user not found in database', [
-        'email' => $userEmail,
-        'ip'    => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    ]);
+    Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on failed: no account with that email',
+        null, $userEmail, 'warning', false, ['reason' => 'unknown_account', 'method' => 'saml']);
     samlUserNotFound($userEmail);
 }
 
 // Account deactivated
 if (!$user['is_active']) {
-    Logger::getInstance()->warning('SAML login attempt on inactive account', [
-        'email'   => $userEmail,
-        'user_id' => $user['users_pk'],
-        'ip'      => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    ]);
+    Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on refused: account deactivated',
+        (int)$user['users_pk'], $userEmail, 'warning', false, ['reason' => 'account_inactive', 'method' => 'saml']);
     samlError('Your account has been deactivated. Please contact your administrator.');
 }
 
 // Success — establish session
 session_regenerate_id(true);
-$_SESSION['authenticated_at'] = time();
 
 $_SESSION['user_id']      = $user['users_pk'];
 $_SESSION['user_email']   = $user['email'];
@@ -127,18 +120,17 @@ $_SESSION['logged_in_at'] = time();
 $_SESSION['last_activity']= time();
 $_SESSION['saml_login']   = true;
 
-Logger::getInstance()->info('SAML SSO login successful', [
-    'user_id' => $user['users_pk'],
-    'email'   => $userEmail,
-    'ip'      => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-]);
+Logger::getInstance()->security(Logger::EVENT_LOGIN_SUCCESS, 'Signed in with single sign-on',
+    (int)$user['users_pk'], $userEmail, 'info', false, ['method' => 'saml']);
 
-// Honour RelayState if the IdP echoed one back (must be a relative path for security)
+// Honour RelayState if the IdP echoed one back (must be a relative path for security);
+// otherwise return to the page that required signing in again, or the dashboard.
+$loginReturn = \SLOCloud\Core\Authorization::takeLoginReturn();
 $relayState = $_POST['RelayState'] ?? '';
 if ($relayState !== '' && str_starts_with($relayState, '/') && !str_starts_with($relayState, '//')) {
     header('Location: ' . $relayState);
 } else {
-    header('Location: ' . BASE_URL . 'administration/');
+    header('Location: ' . $loginReturn);
 }
 exit;
 

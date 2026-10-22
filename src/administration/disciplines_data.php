@@ -100,6 +100,9 @@ $totalRow = fetch_row($totalResult);
 $countQuery = "
     SELECT COUNT(*) as total 
     FROM {$dbPrefix}disciplines d
+    LEFT JOIN {$dbPrefix}terms t ON d.term_fk = t.terms_pk
+    LEFT JOIN {$dbPrefix}users u_created ON d.created_by_fk = u_created.users_pk
+    LEFT JOIN {$dbPrefix}users u_updated ON d.updated_by_fk = u_updated.users_pk
     {$whereClause}
 ";
 if (!empty($whereParams)) {

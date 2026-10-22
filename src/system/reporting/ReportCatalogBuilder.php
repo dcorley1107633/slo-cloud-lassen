@@ -14,7 +14,7 @@ final class ReportCatalogBuilder
 
     private const EXCLUDED_TABLES = [
         'users', 'roles', 'user_roles', 'audit_log', 'error_log', 'security_log',
-        'lti_nonces', 'lti_consumers', 'sessions', 'login_attempts',
+        'lti_nonces', 'lti_consumers', 'sessions', 'login_attempts', 'meta',
     ];
 
     /**

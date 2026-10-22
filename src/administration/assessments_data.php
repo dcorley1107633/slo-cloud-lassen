@@ -168,7 +168,7 @@ try {
         $data[] = [
             $row['assessments_pk'],
             htmlspecialchars($row['term_code']),
-            htmlspecialchars($row['crn']),
+            htmlspecialchars($row['crn'] ?? ''),
             htmlspecialchars($row['course_number'] ?? ''),
             $studentDisplay,
             htmlspecialchars($row['slo_code'] ?? ''),

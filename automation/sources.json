@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "reviewed": "2026-10-15",
+  "notes": [
+    "Every source is verified before use. 'sha256' entries must match exactly.",
+    "'authenticode' entries must carry a valid Authenticode signature whose signer matches 'signer'. Microsoft does not publish hashes for these installers.",
+    "'sha256-confirm' entries have no publisher-supplied hash. The installer prints the computed SHA-256, asks the operator to confirm it out of band, and pins it in C:\\ProgramData\\SLOCloud5\\installer\\sources.lock.json. Later runs must match the pinned value.",
+    "To install offline, put the files named in 'fileName' into a folder and pass -SourceCache <folder>.",
+    "When a PHP patch release supersedes 8.3.35, php.net moves the zip into /releases/archives/. The second URL covers that."
+  ],
+  "sources": {
+    "php": {
+      "description": "PHP 8.3 NTS x64 (VS16)",
+      "version": "8.3.35",
+      "fileName": "php-8.3.35-nts-Win32-vs16-x64.zip",
+      "urls": [
+        "https://downloads.php.net/~windows/releases/php-8.3.35-nts-Win32-vs16-x64.zip",
+        "https://downloads.php.net/~windows/releases/archives/php-8.3.35-nts-Win32-vs16-x64.zip"
+      ],
+      "verify": "sha256",
+      "sha256": "25a8e2ac9ff30f1d768d1447c09a600617fa6e6082729f6e95f008b59c91fe45"
+    },
+    "pdo_sqlsrv": {
+      "description": "Microsoft Drivers for PHP for SQL Server (Windows DLL bundle)",
+      "version": "5.13.3",
+      "fileName": "Windows_5.13.3RTW.zip",
+      "urls": [
+        "https://github.com/microsoft/msphpsql/releases/download/v5.13.3/Windows_5.13.3RTW.zip"
+      ],
+      "verify": "sha256",
+      "sha256": "1538292e1463dc706e0c3038d685b9e55781e592b0dc8634ecf54f44eef4d4d8",
+      "dllPattern": "php_pdo_sqlsrv_{phpMajorMinor}_nts_x64.dll"
+    },
+    "yaml": {
+      "description": "PECL yaml for PHP 8.3 NTS x64 (VS16)",
+      "version": "2.3.0",
+      "fileName": "php_yaml-2.3.0-8.3-nts-vs16-x64.zip",
+      "urls": [
+        "https://downloads.php.net/~windows/pecl/releases/yaml/2.3.0/php_yaml-2.3.0-8.3-nts-vs16-x64.zip"
+      ],
+      "verify": "sha256-confirm",
+      "sha256": null
+    },
+    "cacert": {
+      "description": "Mozilla CA bundle (curl.se extract) for curl.cainfo / openssl.cafile",
+      "version": "2026-09-25",
+      "fileName": "cacert-2026-09-25.pem",
+      "urls": [
+        "https://curl.se/ca/cacert-2026-09-25.pem"
+      ],
+      "verify": "sha256",
+      "sha256": "a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505"
+    },
+    "vcredist": {
+      "description": "Visual C++ 2015-2022 Redistributable x64 (shared runtime)",
+      "version": "latest 14.x",
+      "fileName": "vc_redist.x64.exe",
+      "urls": [
+        "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+      ],
+      "verify": "authenticode",
+      "signer": "Microsoft Corporation",
+      "sha256": null
+    },
+    "urlrewrite": {
+      "description": "IIS URL Rewrite Module 2.1 x64 (shared IIS module)",
+      "version": "2.1",
+      "fileName": "rewrite_amd64_en-US.msi",
+      "urls": [
+        "https://download.microsoft.com/download/1/2/8/128E2E22-C1B9-44A4-BE2A-5859ED1D4592/rewrite_amd64_en-US.msi"
+      ],
+      "verify": "authenticode",
+      "signer": "Microsoft Corporation",
+      "sha256": null
+    },
+    "odbc": {
+      "description": "Microsoft ODBC Driver 18 for SQL Server x64 (shared driver)",
+      "version": "18.x (current)",
+      "fileName": "msodbcsql.msi",
+      "urls": [
+        "https://go.microsoft.com/fwlink/?linkid=2378279"
+      ],
+      "verify": "authenticode",
+      "signer": "Microsoft Corporation",
+      "sha256": null,
+      "licenseUrl": "https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server"
+    },
+    "mingit": {
+      "description": "MinGit for Windows x64 (used only when git.exe is not already installed; extracted under <install-root>\\tools, never added to PATH)",
+      "version": "2.56.0.windows.2",
+      "fileName": "MinGit-2.56.0.2-64-bit.zip",
+      "urls": [
+        "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/MinGit-2.56.0.2-64-bit.zip"
+      ],
+      "verify": "sha256",
+      "sha256": "da35e72aa21c005a5a0d298cfbae110bc1609a815730ea0dde84b01a1b3cd3be"
+    }
+  }
+}

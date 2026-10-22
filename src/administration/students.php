@@ -21,7 +21,7 @@ $studentEncryption = new StudentEncryption($config);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         http_response_code(403);
-        die('CSRF token validation failed');
+        die('This form has expired. Reload the page and try again.');
     }
     
     $action = $_POST['action'] ?? '';
@@ -59,7 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 if (empty($errors)) {
-                    // Encrypt student data
+                    // Encrypt student data (full name in first_name, as edit does)
+                    $firstName = $studentName;
+                    $lastName = '';
                     $encrypted = $studentEncryption->encryptStudentData($studentId, $firstName, $lastName);
                     $userId = getValidUserId();
                     $db->query(

@@ -7,6 +7,7 @@
 -- Drop existing tables if they exist (for clean reinstall)
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS slocloud_tbl_meta;
 DROP TABLE IF EXISTS slocloud_tbl_lti_nonces;
 DROP TABLE IF EXISTS slocloud_tbl_lti_consumers;
 DROP TABLE IF EXISTS slocloud_tbl_user_roles;
@@ -476,6 +477,20 @@ CREATE TABLE slocloud_tbl_lti_nonces (
     INDEX idx_consumer_key (consumer_key),
     INDEX idx_timestamp (timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- SCHEMA VERSION
+-- ============================================================================
+-- The app version of the last schema change. Upgrades apply the files in
+-- migrations/ from this value forward (see docs/upgrades/README.md).
+
+CREATE TABLE slocloud_tbl_meta (
+    name VARCHAR(100) NOT NULL PRIMARY KEY,
+    value VARCHAR(255) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO slocloud_tbl_meta (name, value) VALUES ('schema_version', '5.2.1');
 
 -- ============================================================================
 -- INITIAL DATA: Standard Roles

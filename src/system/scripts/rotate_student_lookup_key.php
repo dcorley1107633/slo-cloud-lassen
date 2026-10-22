@@ -138,14 +138,7 @@ $currentLookupKey = (string)($configObject->get('security.student_lookup_key') ?
 // rotation would write a key the running site never picks up.
 // ---------------------------------------------------------------------------
 $keyFile = '';
-$environmentKeyPath = getenv('SLOCloud_KEY_PATH');
-$candidatePaths = [];
-if (is_string($environmentKeyPath) && $environmentKeyPath !== '') {
-    $candidatePaths[] = $environmentKeyPath;
-}
-$candidatePaths[] = dirname($configFile) . '/key.yaml';
-$candidatePaths[] = dirname(dirname($configFile)) . '/key.yaml';
-foreach ($candidatePaths as $candidate) {
+foreach ($configObject->keyPathCandidates() as $candidate) {
     if (is_file($candidate)) {
         $keyFile = $candidate;
         break;

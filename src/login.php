@@ -53,6 +53,15 @@ $loginLimiter = new LoginLimiter($applicationDataRoot . '/var/loginlimits');
 /**
  * Format a wait time for a user-facing message.
  */
+/**
+ * Record a sign-in attempt in the security log, which the Activity Log shows.
+ * The Logger stores the email as a one-way token, never in clear text.
+ */
+function recordSignInEvent(string $event, string $description, ?int $userId, string $email, string $severity, bool $isThreat, array $metadata): void
+{
+    Logger::getInstance()->security($event, $description, $userId, $email !== '' ? $email : null, $severity, $isThreat, $metadata);
+}
+
 function formatLockoutWait(int $seconds): string
 {
     $minutes = (int)ceil($seconds / 60);
@@ -89,11 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Too many failed login attempts. Please wait ' . formatLockoutWait($retryAfter) . ' and try again.';
         http_response_code(429);
         header('Retry-After: ' . $retryAfter);
-        Logger::getInstance()->warning('Login attempt refused by rate limiter', [
-            'email' => $email,
-            'ip' => $clientIp,
-            'retry_after' => $retryAfter
-        ]);
+        recordSignInEvent(Logger::EVENT_LOGIN_FAILED, 'Sign-in refused: too many failed attempts', null, $email,
+            'warning', true, ['reason' => 'rate_limited', 'method' => 'password']);
     } else {
     if (empty($email) || empty($password)) {
         $error = 'Email and password are required.';
@@ -117,16 +123,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_email'] = $emergencyAdminUsername;
                 $_SESSION['user_name'] = 'Emergency Admin';
                 $_SESSION['logged_in_at'] = time();
-                $_SESSION['authenticated_at'] = time();
                 $_SESSION['last_activity'] = time();
                 $_SESSION['is_emergency_admin'] = true;
                 
-                Logger::getInstance()->warning('Emergency admin login used', [
-                    'username' => $emergencyAdminUsername,
-                    'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
-                ]);
-                
-                header('Location: ' . BASE_URL . 'administration/');
+                recordSignInEvent(Logger::EVENT_LOGIN_SUCCESS, 'Emergency administrator signed in', null, $emergencyAdminUsername,
+                    'warning', false, ['method' => 'emergency']);
+
+                header('Location: ' . \SLOCloud\Core\Authorization::takeLoginReturn());
                 exit;
             }
         }
@@ -146,10 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Check if account is active
                 if (!$user['is_active']) {
                     $error = 'Your account has been deactivated. Please contact your administrator.';
-                    Logger::getInstance()->warning('Login attempt on inactive account', [
-                        'email' => $email,
-                        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
-                    ]);
+                    recordSignInEvent(Logger::EVENT_LOGIN_FAILED, 'Sign-in refused: account deactivated', (int)$user['users_pk'], $email,
+                        'warning', false, ['reason' => 'account_inactive', 'method' => 'password']);
                 } 
                 // Verify password
                 elseif (password_verify($password, $user['password_hash'])) {
@@ -164,39 +165,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['user_email'] = $user['email'];
                     $_SESSION['user_name'] = $user['full_name'];
                     $_SESSION['logged_in_at'] = time();
-                    $_SESSION['authenticated_at'] = time();
                     $_SESSION['last_activity'] = time();
                     
-                    Logger::getInstance()->info('User logged in', [
-                        'user_id' => $user['users_pk'],
-                        'email' => $email,
-                        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
-                    ]);
+                    recordSignInEvent(Logger::EVENT_LOGIN_SUCCESS, 'Signed in', (int)$user['users_pk'], $email,
+                        'info', false, ['method' => 'password']);
                     
-                    // Redirect to dashboard
-                    header('Location: ' . BASE_URL . 'administration/');
+                    // Back to the page that required signing in again, or the dashboard
+                    header('Location: ' . \SLOCloud\Core\Authorization::takeLoginReturn());
                     exit;
                 } else {
                     // Invalid password
                     $error = 'Invalid email or password.';
-                    $lockSeconds = $loginLimiter->recordFailure($limiterKeys);
-                    Logger::getInstance()->warning('Failed login attempt', [
-                        'email' => $email,
-                        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                        'reason' => 'invalid_password',
-                        'lockout_seconds' => $lockSeconds
-                    ]);
+                    $loginLimiter->recordFailure($limiterKeys);
+                    recordSignInEvent(Logger::EVENT_LOGIN_FAILED, 'Sign-in failed: wrong password', (int)$user['users_pk'], $email,
+                        'warning', false, ['reason' => 'wrong_password', 'method' => 'password']);
                 }
             } else {
                 // User not found
                 $error = 'Invalid email or password.';
-                $lockSeconds = $loginLimiter->recordFailure($limiterKeys);
-                Logger::getInstance()->warning('Failed login attempt', [
-                    'email' => $email,
-                    'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-                    'reason' => 'user_not_found',
-                    'lockout_seconds' => $lockSeconds
-                ]);
+                $loginLimiter->recordFailure($limiterKeys);
+                recordSignInEvent(Logger::EVENT_LOGIN_FAILED, 'Sign-in failed: no account with that email', null, $email,
+                    'warning', false, ['reason' => 'unknown_account', 'method' => 'password']);
             }
             
         } catch (Exception $e) {
@@ -233,8 +222,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="<?= BASE_URL ?>system/accessibility.js" defer></script>
     
     <style>
+        :root {
+            --primary-dark: #0D47A1;
+            --accent-blue: #1976D2;
+            --brand-teal: #1565C0;
+        }
         body {
-            background: linear-gradient(135deg, #0D47A1 0%, #1976D2 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--accent-blue) 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -252,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             overflow: hidden;
         }
         .login-header {
-            background: linear-gradient(135deg, #0D47A1 0%, #1565C0 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--brand-teal) 100%);
             color: white;
             padding: 2rem;
             text-align: center;
@@ -268,16 +262,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #666;
         }
         .btn-login {
-            background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-teal) 100%);
             border: none;
             padding: 0.75rem;
             font-weight: 500;
             transition: all 0.3s;
         }
         .btn-login:hover {
-            background: linear-gradient(135deg, #0D47A1 0%, #1976D2 100%);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--accent-blue) 100%);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(13, 71, 161, 0.4);
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-dark) 40%, transparent);
         }
         .sso-divider {
             display: flex;
@@ -300,6 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 0.875rem;
         }
     </style>
+    <?php require __DIR__ . '/system/includes/color_scheme_style.php'; ?>
 </head>
 <body>
     <a href="#main" class="skip-link">Skip to main content</a>

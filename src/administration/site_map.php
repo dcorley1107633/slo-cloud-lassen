@@ -36,7 +36,9 @@ if ($isAdmin) {
         ['Activity log', 'activity_log.php'],
         ['Users and roles', 'users.php'],
         ['Configuration', 'config.php'],
+        ['Color scheme', 'color_scheme.php'],
         ['LTI integration', '../lti/'],
+        ['Deploy to Canvas', 'canvas_deploy.php'],
         ['System status', 'system_status.php'],
     ];
 }

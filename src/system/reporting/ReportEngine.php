@@ -128,6 +128,10 @@ final class ReportEngine
             $aggregate = $column['aggregate'];
             if ($aggregate !== '') {
                 $function = self::AGGREGATES[$aggregate];
+                if ($isSqlServer && $fieldMeta['type'] === 'bool' && in_array($function, ['SUM', 'AVG'], true)) {
+                    // SQL Server rejects SUM over a bit column.
+                    $expression = "CAST({$expression} AS INT)";
+                }
                 $expression = $function === 'COUNT_DISTINCT' ? "COUNT(DISTINCT {$expression})" : "{$function}({$expression})";
             } elseif ($hasAggregate) {
                 $groupBy[] = $expression;

@@ -92,6 +92,14 @@ $themeCanAdminister = $themeDb instanceof \SLOCloud\Core\Database
                 transition-duration: 0.01ms !important;
                 scroll-behavior: auto !important;
             }
+
+            /* Busy spinners are status indicators, so keep them turning, just slower. */
+            .spinner-border,
+            .spinner-grow,
+            .fa-spin {
+                animation-duration: 1.5s !important;
+                animation-iteration-count: infinite !important;
+            }
         }
         
         /* Enhanced contrast for muted text (WCAG 1.4.6 Level AAA - 7:1) */
@@ -120,6 +128,7 @@ $themeCanAdminister = $themeDb instanceof \SLOCloud\Core\Database
     <?php if (isset($customCss)): ?>
     <?= $customCss ?>
     <?php endif; ?>
+    <?php require dirname(__DIR__, 5) . '/includes/color_scheme_style.php'; ?>
 </head>
 <body class="layout-fixed sidebar-expand-lg">
 
@@ -199,6 +208,9 @@ $themeCanAdminister = $themeDb instanceof \SLOCloud\Core\Database
                     </a>
                     <a href="<?= BASE_URL ?>administration/config.php" class="dropdown-item" role="menuitem">
                         <i class="bi bi-gear me-2" aria-hidden="true"></i> Configuration
+                    </a>
+                    <a href="<?= BASE_URL ?>administration/color_scheme.php" class="dropdown-item" role="menuitem">
+                        <i class="bi bi-palette me-2" aria-hidden="true"></i> Color scheme
                     </a>
                     <div class="dropdown-divider" role="separator"></div>
                 <?php endif; ?>
@@ -437,9 +449,21 @@ $themeCanAdminister = $themeDb instanceof \SLOCloud\Core\Database
                             </a>
                         </li>
                         <li class="nav-item" role="none">
+                            <a href="<?= BASE_URL ?>administration/color_scheme.php" class="nav-link <?= ($currentPage ?? '') === 'admin_color_scheme' ? 'active' : '' ?>" role="menuitem" <?= ($currentPage ?? '') === 'admin_color_scheme' ? 'aria-current="page"' : '' ?>>
+                                <i class="nav-icon bi bi-circle" aria-hidden="true"></i>
+                                <p>Color Scheme</p>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
                             <a href="<?= BASE_URL ?>lti/" class="nav-link <?= ($currentPage ?? '') === 'admin_lti' ? 'active' : '' ?>" role="menuitem" <?= ($currentPage ?? '') === 'admin_lti' ? 'aria-current="page"' : '' ?>>
                                 <i class="nav-icon bi bi-circle" aria-hidden="true"></i>
                                 <p>LTI Integration</p>
+                            </a>
+                        </li>
+                        <li class="nav-item" role="none">
+                            <a href="<?= BASE_URL ?>administration/canvas_deploy.php" class="nav-link <?= ($currentPage ?? '') === 'admin_canvas_deploy' ? 'active' : '' ?>" role="menuitem" <?= ($currentPage ?? '') === 'admin_canvas_deploy' ? 'aria-current="page"' : '' ?>>
+                                <i class="nav-icon bi bi-circle" aria-hidden="true"></i>
+                                <p>Deploy to Canvas</p>
                             </a>
                         </li><?php endif; ?>
                         <li class="nav-item" role="none">

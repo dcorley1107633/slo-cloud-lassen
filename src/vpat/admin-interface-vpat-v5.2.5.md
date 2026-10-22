@@ -1,17 +1,17 @@
 # Accessibility Conformance Report
-## SLOCloud Administrative Interface 5.1.0
+## SLOCloud Administrative Interface 5.2.5
 
-VPAT WCAG Edition 2.5, based on WCAG 2.2. Evaluation date: July 19, 2026.
+VPAT WCAG Edition 2.5, based on WCAG 2.2. Evaluation date: July 19, 2026. Reissued for 5.2.5 on October 20, 2026. Interface changes made since that evaluation have not yet been re-evaluated.
 
-The 5.1.0 implementation was evaluated by complete in-scope source inventory, automated PHP and markup-regression checks, targeted browser behavior checks, and computed checks of the application-defined contrast palette. Every WCAG 2.2 Level A and AA criterion is either supported or not applicable in the scoped interface; SLOCloud Administrative Interface 5.1.0 therefore claims WCAG 2.2 Level AA conformance for this scope. Independent assistive-technology and deployment validation remains a release-quality verification gate, not a known implementation exception.
+The 5.1.0 implementation was evaluated by complete in-scope source inventory, automated PHP and markup-regression checks, targeted browser behavior checks, and computed checks of the application-defined contrast palette. Every WCAG 2.2 Level A and AA criterion was found supported or not applicable in the scoped interface. The 5.2.1 release changed this evaluated surface: activation and deactivation controls moved into edit dialogs, expandable related-record summaries, standardized row-action groups with new accessible names, expanded-state announcements, live loading and error messages, table captions and scoped headings, custom report JSON creation and decrypted student fields, and the LTI launch bootstrapper. The 5.2.2 release adds the Deploy to Canvas administration page (deployment scope form, dry-run and results tables, run progress, and CSV download), a Canvas Deployment Settings section on the Configuration page, and a link to the new page from the LTI page. The 5.2.3 release fixes the shared form validation so the linked error summary no longer takes focus from a field on every keystroke (it now appears and takes focus on submit), replaces the generic access-denied page with a message stating the reason, explains on the login page why a session ended and returns the user to the page they were on after signing in, and adds a 20-hour maximum session length alongside the extendable two-hour inactivity timeout. The 5.2.4 release adds a Details column to the Activity Log table and its CSV export; a progress dialog on Term Imports (Normalized) that holds focus while an import runs, shows a labelled progress bar and the elapsed time, announces each step through a polite status region, and moves focus to its Close button if the import fails; an Encryption Keys Folder section on the Configuration page with a labelled folder field and Check Folder and Move Keys Folder buttons whose steps are listed in the existing key-operation dialog; and a separate Theme Settings page that uses the same labelled settings fields as the Configuration page. Busy spinners now keep turning, more slowly, when reduced motion is requested. The 5.2.5 release moves the theme choices from their own page back into a Theme Settings section of the Configuration page, and adds a separate Color Scheme page with 18 schemes in labelled Standard, Fallout and Other groups (radio buttons, each shown as a color swatch with its scheme name, that preview the choice on the page as soon as it is selected and is saved only on submit; every scheme keeps white text on its colors, the sidebar menu uses the scheme's dark color behind white text, and scheme-colored links at least 4.5:1 against white, light gray and striped table rows, and keyboard focus outlines keep their existing dark blue; the Pride rainbow bar is decorative and non-interactive, and a static, screen-reader-hidden sample panel shows the scheme's effects) and a Download sample link under the upload field of each file on Term Imports (Normalized). These changes have not been independently re-evaluated. The Custom Report builder, redesigned from per-item field groups to an editable table after the 5.1.0 evaluation, was corrected for 5.2.1 so each row is identified by a row header, each row control is named by its column header and field, joined tables are grouped under a legend, instructions are visible text, keyboard focus is preserved when rows re-render, and row additions, moves, and removals are announced; the automated accessibility regression suite passes for this release. SLOCloud Administrative Interface 5.2.5 claims WCAG 2.2 Level AA conformance for this scope on the basis of the 5.1.0 evaluated results, and the criterion results below are carried forward from that evaluation pending re-evaluation of the changed surface. Independent assistive-technology and deployment validation remains a release-quality verification gate.
 
-Implementation and browser evidence: [SLOCloud 5.1.0 accessibility verification](evidence/v5.1.0-accessibility-verification.md).
+Implementation and browser evidence (from the 5.1.0 evaluation; not yet updated for 5.2.1, 5.2.2, 5.2.3, 5.2.4 and 5.2.5 interface changes): [SLOCloud 5.1.0 accessibility verification](evidence/v5.1.0-accessibility-verification.md).
 
 ## Product information
 
 | Field | Value |
 |---|---|
-| Product | SLOCloud Administrative Interface 5.1.0 |
+| Product | SLOCloud Administrative Interface 5.2.5 |
 | Description | Administration, setup, authentication, imports, tables, reports, and configuration workflows |
 | Contact | SLOCloud Project Team |
 | Evaluation methods | Source review; PHP syntax and regression tests; static accessibility assertions; browser verification of validation, tables, status messages, dialogs, focus return, and session warning/extension |
@@ -39,8 +39,8 @@ Implementation and browser evidence: [SLOCloud 5.1.0 accessibility verification]
 | 2.1.1 Keyboard | Supports | All application actions use native keyboard-operable controls; sidebar groups are buttons and generated row/report actions remain native controls. |
 | 2.1.2 No Keyboard Trap | Supports | No custom keyboard trap exists; modal dialogs provide standard escape/focus behavior and the session dialog provides explicit continuation/logout actions. |
 | 2.1.4 Character Key Shortcuts | Supports | No single-character shortcuts were identified. |
-| 2.2.1 Timing Adjustable | Supports | System-status refresh can be disabled. Authenticated sessions provide a focused two-minute warning, disclose the limit, and allow unlimited explicit extensions. |
-| 2.2.2 Pause, Stop, Hide | Supports | System-status refresh can be disabled, notifications can be dismissed, and reduced-motion styling suppresses non-essential animation. |
+| 2.2.1 Timing Adjustable | Supports | System-status refresh can be disabled. Authenticated sessions provide a focused two-minute warning, disclose the limit, and allow unlimited explicit extensions. Sessions also end 20 hours after sign-in regardless of activity, which meets the 20-hour exception. |
+| 2.2.2 Pause, Stop, Hide | Supports | System-status refresh can be disabled, notifications can be dismissed, and reduced-motion styling suppresses non-essential animation. Busy spinners, which show that work is still running, keep turning at a slower speed. |
 | 2.3.1 Three Flashes or Below Threshold | Supports | No flashing content or code-driven rapid flashes were identified. |
 | 2.4.1 Bypass Blocks | Supports | Shared layouts provide a first-focusable skip link and a stable, focusable main target. |
 | 2.4.2 Page Titled | Supports | Shared layouts render the route-specific page title. |
@@ -90,10 +90,10 @@ Implementation and browser evidence: [SLOCloud 5.1.0 accessibility verification]
 
 ## Revised Section 508 and EN 301 549
 
-The applicable web requirements map to the supporting WCAG results above. SLOCloud 5.1.0 claims conformance with the WCAG-based web requirements of Revised Section 508 and EN 301 549 for the evaluated scope. Functional performance, documentation, support services, and closed-product requirements are outside this web evaluation.
+The applicable web requirements map to the supporting WCAG results above. SLOCloud 5.2.5 claims conformance with the WCAG-based web requirements of Revised Section 508 and EN 301 549 for the evaluated scope. Functional performance, documentation, support services, and closed-product requirements are outside this web evaluation.
 
 ## Additional release validation
 
 The implementation has no known A/AA conformance gap. The release process still requires authenticated axe coverage, keyboard-only critical journeys, NVDA with Firefox and Chrome, VoiceOver with Safari, 200% text, 400% zoom/320 CSS pixels, text spacing, forced colors, reduced motion, orientation, contrast measurement, and target-size measurement so deployment- or assistive-technology-specific regressions are caught.
 
-Report version 3.0. Last updated July 19, 2026.
+Report version 3.6. Last updated October 20, 2026 (reissued for 5.2.5; criterion results carried forward from report version 3.0, July 19, 2026, pending re-evaluation of interface changes made since then).

@@ -99,6 +99,40 @@ require_once __DIR__ . '/../Core/Theme.php';
 require_once __DIR__ . '/../Core/ThemeContext.php';
 require_once __DIR__ . '/../Core/ThemeLoader.php';
 
+// Last resort for anything a page does not catch (a TypeError from a NULL column,
+// a database outage). Without it PHP answers an empty HTTP 500: tables show an
+// "Ajax error" and pages go blank, with nothing in the application log.
+set_exception_handler(static function (\Throwable $e): void {
+    error_log(sprintf('Uncaught %s: %s in %s:%d', get_class($e), $e->getMessage(), $e->getFile(), $e->getLine()));
+    if (isset($GLOBALS['logger']) && $GLOBALS['logger'] instanceof \SLOCloud\Core\Logger) {
+        try {
+            $GLOBALS['logger']->error(
+                'Uncaught ' . get_class($e) . ': ' . $e->getMessage(),
+                'UNCAUGHT_EXCEPTION',
+                null,
+                $e->getTraceAsString(),
+                $e->getFile(),
+                $e->getLine()
+            );
+        } catch (\Throwable) {
+            // error_log above already recorded it.
+        }
+    }
+    $message = 'Something went wrong on the server. The details are in the application log.';
+    if (!headers_sent()) {
+        http_response_code(500);
+        if (\SLOCloud\Core\Authorization::wantsJson()) {
+            header('Content-Type: application/json; charset=UTF-8');
+            // DataTables shows "error" instead of its generic Ajax warning.
+            echo json_encode(['error' => $message, 'message' => $message, 'data' => []]);
+            return;
+        }
+        header('Content-Type: text/html; charset=UTF-8');
+    }
+    echo '<div role="alert" style="font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 1rem;">'
+        . '<h1>Error</h1><p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p></div>';
+});
+
 // Load helper functions
 require_once __DIR__ . '/csv_helpers.php';  // UTF-8 CSV handling
 require_once __DIR__ . '/lifecycle.php';
@@ -119,8 +153,31 @@ if (is_string($configuredKeyPath) && $configuredKeyPath !== '') {
 // Load configuration for this request. Decrypted secrets must never be serialized
 // into a PHP session record.
 $configPath = __DIR__ . '/../../config/config.yaml';
-$config = \SLOCloud\Core\Config::getInstance($configPath);
-$configData = $config->allDecrypted();
+try {
+    $config = \SLOCloud\Core\Config::getInstance($configPath);
+    $configData = $config->allDecrypted();
+} catch (\RuntimeException $e) {
+    // A config.yaml that does not load (a value the template rejects, a key that
+    // cannot decrypt it) fails every page before the logger exists. Record the
+    // reason in <data>/logs, where the log folder setting would not help.
+    $fallbackLogDirectory = $applicationDataRoot . '/logs';
+    if (!is_dir($fallbackLogDirectory)) {
+        @mkdir($fallbackLogDirectory, 0700, true);
+    }
+    $configErrorLine = '[' . date('Y-m-d H:i:s') . '] Configuration error: ' . $e->getMessage() . PHP_EOL;
+    @error_log($configErrorLine, 3, $fallbackLogDirectory . '/php_errors.log');
+    error_log('SLOCloud configuration error: ' . $e->getMessage());
+    http_response_code(500);
+    $configErrorMessage = 'SLO Cloud could not load its configuration (config.yaml). The reason is recorded in php_errors.log in the logs folder of the SLO Cloud data folder.';
+    if (\SLOCloud\Core\Authorization::wantsJson()) {
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode(['error' => $configErrorMessage, 'message' => $configErrorMessage, 'data' => []]);
+        exit(1);
+    }
+    require_once __DIR__ . '/message_page.php';
+    render_message_page('error', 'Configuration Error', $configErrorMessage, 'fa-exclamation-triangle text-danger');
+    exit(1);
+}
 
 // Set configured base URL if available (for performance)
 $configuredBaseUrl = $config->get('app.base_url');
@@ -140,10 +197,7 @@ $appVersion = trim(file_get_contents(__DIR__ . '/../../VERSION'));
 $phpErrorMode = $config->get('app.php_error_mode', 'logged');
 
 // Use configured log directory if set, otherwise default outside the document root.
-$configuredLogDir = $config->get('logging.log_directory', '');
-$logDirectory = ($configuredLogDir !== '' && $configuredLogDir !== null)
-    ? rtrim($configuredLogDir, '/\\')
-    : $applicationDataRoot . '/logs';
+$logDirectory = \SLOCloud\Core\Security::logDirectory($config->get('logging.log_directory', ''), dirname(__DIR__, 2));
 $configData['logging']['log_directory'] = $logDirectory;
 
 // Ensure logs directory exists
@@ -252,18 +306,36 @@ $isExemptPage = in_array($routePolicy, [
 
 if (!$isExemptPage) {
     if (!isset($_SESSION['user_id'])) {
+        // A table or dialog would receive the login page as its data and report an
+        // "Ajax error"; answer 401 session_ended so it goes to the login page.
+        if (\SLOCloud\Core\Authorization::wantsJson()) {
+            \SLOCloud\Core\Authorization::endSession('Your session has ended. Please log in again.', $scriptPath, $requestMethod);
+        }
         header('Location: ' . BASE_URL . 'login.php');
         exit;
     }
 
     // Session inactivity timeout: 2 hours
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > 7200) {
-        session_unset();
-        session_destroy();
-        session_start();
-        $_SESSION['flash_error'] = 'Your session has expired. Please log in again.';
-        header('Location: ' . BASE_URL . 'login.php');
-        exit;
+        \SLOCloud\Core\Authorization::endSession(
+            'You were signed out after 2 hours of inactivity. Please log in again.',
+            $scriptPath,
+            $requestMethod,
+            'idle_timeout'
+        );
+    }
+    // Maximum session length: 20 hours from sign-in, however active. WCAG 2.2.1 allows a
+    // fixed limit without an extension only at 20 hours or more (the idle timeout above
+    // can be extended from its warning). Sessions from before this limit existed have no
+    // sign-in time and start counting now.
+    $_SESSION['logged_in_at'] ??= time();
+    if (time() - (int)$_SESSION['logged_in_at'] > 72000) {
+        \SLOCloud\Core\Authorization::endSession(
+            'For your security, sessions end 20 hours after sign-in. Please log in again.',
+            $scriptPath,
+            $requestMethod,
+            'max_session_length'
+        );
     }
     // session.php performs the touch only after validating its POST token.
     if ($scriptPath !== 'session.php') {
@@ -286,27 +358,20 @@ if (!$isExemptPage) {
         $authUser = $authCheckResult ? $authCheckResult->fetch() : false;
         
         if (!$authUser || !$authUser['is_active']) {
-            session_unset();
-            session_destroy();
-            
-            $logger->warning('Access denied - user deactivated or deleted', [
-                'user_id' => $authUserId,
-                'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
-            ]);
-            
-            header('Location: ' . BASE_URL . 'login.php');
-            exit;
+            \SLOCloud\Core\Authorization::endSession(
+                'Your account is no longer active. Please contact an administrator.',
+                $scriptPath,
+                $requestMethod,
+                $authUser ? 'account_inactive' : 'account_deleted'
+            );
         }
     }
 
-    if ($routePolicy === 'admin' || $routePolicy === 'admin_recent_auth') {
+    if ($routePolicy === 'admin') {
         if (str_starts_with($scriptPath, 'administration/')) {
-            \SLOCloud\Core\Authorization::requireAdministrationRoute($db, $dbPrefix, $logger, $scriptPath, $requestMethod);
+            \SLOCloud\Core\Authorization::requireAdministrationRoute($db, $dbPrefix, $logger, $scriptPath);
         } else {
             \SLOCloud\Core\Authorization::requireGlobalAdmin($db, $dbPrefix, $logger, $scriptPath);
-        }
-        if ($routePolicy === 'admin_recent_auth') {
-            \SLOCloud\Core\Authorization::requireRecentAuthentication($logger, $scriptPath);
         }
     }
 }

@@ -92,6 +92,8 @@ $countQuery = "
     SELECT COUNT(*) as total 
     FROM {$dbPrefix}courses c
     LEFT JOIN {$dbPrefix}terms t ON c.term_fk = t.terms_pk
+    LEFT JOIN {$dbPrefix}users u_created ON c.created_by_fk = u_created.users_pk
+    LEFT JOIN {$dbPrefix}users u_updated ON c.updated_by_fk = u_updated.users_pk
     {$whereClause}
 ";
 if (!empty($whereParams)) {

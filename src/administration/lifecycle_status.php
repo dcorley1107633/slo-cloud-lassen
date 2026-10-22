@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$_POST['csrf_token'])) {
     http_response_code(403);
-    exit('CSRF token validation failed');
+    exit('This form has expired. Reload the page and try again.');
 }
 
 $entity = (string)($_POST['entity'] ?? '');

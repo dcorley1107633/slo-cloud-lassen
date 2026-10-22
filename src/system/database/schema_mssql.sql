@@ -4,6 +4,7 @@
 -- REFERENTIAL INTEGRITY REMOVED FOR COMPATIBILITY
 
 -- Drop existing tables if they exist (for clean reinstall)
+IF OBJECT_ID('slocloud_tbl_meta', 'U') IS NOT NULL DROP TABLE slocloud_tbl_meta;
 IF OBJECT_ID('slocloud_tbl_lti_nonces', 'U') IS NOT NULL DROP TABLE slocloud_tbl_lti_nonces;
 IF OBJECT_ID('slocloud_tbl_lti_consumers', 'U') IS NOT NULL DROP TABLE slocloud_tbl_lti_consumers;
 IF OBJECT_ID('slocloud_tbl_user_roles', 'U') IS NOT NULL DROP TABLE slocloud_tbl_user_roles;
@@ -105,6 +106,7 @@ CREATE TABLE slocloud_tbl_terms (
     academic_year NVARCHAR(20),
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -114,6 +116,7 @@ CREATE UNIQUE INDEX idx_banner_term ON slocloud_tbl_terms(banner_term);
 CREATE INDEX idx_term_code ON slocloud_tbl_terms(term_code);
 CREATE INDEX idx_created_by_fk_terms ON slocloud_tbl_terms(created_by_fk);
 CREATE INDEX idx_updated_by_fk_terms ON slocloud_tbl_terms(updated_by_fk);
+CREATE INDEX idx_is_active_terms ON slocloud_tbl_terms(is_active);
 GO
 
 CREATE TRIGGER trg_terms_updated_at
@@ -139,6 +142,7 @@ CREATE TABLE slocloud_tbl_institutional_outcomes (
     outcome_code NVARCHAR(50) NOT NULL,
     outcome_description NVARCHAR(MAX) NOT NULL,
     sequence_num INT NOT NULL DEFAULT 0,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -150,6 +154,7 @@ CREATE INDEX idx_term_outcome ON slocloud_tbl_institutional_outcomes(term_fk, ou
 CREATE INDEX idx_sequence_num_io ON slocloud_tbl_institutional_outcomes(sequence_num);
 CREATE INDEX idx_created_by_fk_io ON slocloud_tbl_institutional_outcomes(created_by_fk);
 CREATE INDEX idx_updated_by_fk_io ON slocloud_tbl_institutional_outcomes(updated_by_fk);
+CREATE INDEX idx_is_active_io ON slocloud_tbl_institutional_outcomes(is_active);
 GO
 
 CREATE TRIGGER trg_institutional_outcomes_updated_at
@@ -174,6 +179,7 @@ CREATE TABLE slocloud_tbl_disciplines (
     term_fk INT NOT NULL,
     discipline_name NVARCHAR(255) NOT NULL,
     discipline_code NVARCHAR(50),
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -185,6 +191,7 @@ CREATE INDEX idx_discipline_code ON slocloud_tbl_disciplines(discipline_code);
 CREATE INDEX idx_discipline_per_term ON slocloud_tbl_disciplines(term_fk, discipline_code);
 CREATE INDEX idx_created_by_fk_disciplines ON slocloud_tbl_disciplines(created_by_fk);
 CREATE INDEX idx_updated_by_fk_disciplines ON slocloud_tbl_disciplines(updated_by_fk);
+CREATE INDEX idx_is_active_disciplines ON slocloud_tbl_disciplines(is_active);
 GO
 
 CREATE TRIGGER trg_disciplines_updated_at
@@ -211,6 +218,7 @@ CREATE TABLE slocloud_tbl_programs (
     program_code NVARCHAR(50) NOT NULL,
     program_name NVARCHAR(255) NOT NULL,
     degree_type NVARCHAR(50),
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -222,6 +230,7 @@ CREATE INDEX idx_program_code ON slocloud_tbl_programs(program_code);
 CREATE INDEX idx_program_per_term ON slocloud_tbl_programs(term_fk, program_code);
 CREATE INDEX idx_created_by_fk_programs ON slocloud_tbl_programs(created_by_fk);
 CREATE INDEX idx_updated_by_fk_programs ON slocloud_tbl_programs(updated_by_fk);
+CREATE INDEX idx_is_active_programs ON slocloud_tbl_programs(is_active);
 GO
 
 CREATE TRIGGER trg_programs_updated_at
@@ -244,6 +253,7 @@ CREATE TABLE slocloud_tbl_program_outcomes (
     outcome_code NVARCHAR(50) NOT NULL,
     outcome_description NVARCHAR(MAX) NOT NULL,
     sequence_num INT NOT NULL DEFAULT 0,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -256,6 +266,7 @@ CREATE INDEX idx_institutional_outcomes_fk ON slocloud_tbl_program_outcomes(inst
 CREATE INDEX idx_sequence_num_po ON slocloud_tbl_program_outcomes(sequence_num);
 CREATE INDEX idx_created_by_fk_po ON slocloud_tbl_program_outcomes(created_by_fk);
 CREATE INDEX idx_updated_by_fk_po ON slocloud_tbl_program_outcomes(updated_by_fk);
+CREATE INDEX idx_is_active_po ON slocloud_tbl_program_outcomes(is_active);
 GO
 
 CREATE TRIGGER trg_program_outcomes_updated_at
@@ -281,6 +292,7 @@ CREATE TABLE slocloud_tbl_courses (
     discipline_fk INT,
     course_number NVARCHAR(50) NOT NULL,
     course_name NVARCHAR(255) NOT NULL,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -292,6 +304,7 @@ CREATE INDEX idx_course_number ON slocloud_tbl_courses(course_number);
 CREATE INDEX idx_course_per_term ON slocloud_tbl_courses(term_fk, course_number);
 CREATE INDEX idx_created_by_fk_courses ON slocloud_tbl_courses(created_by_fk);
 CREATE INDEX idx_updated_by_fk_courses ON slocloud_tbl_courses(updated_by_fk);
+CREATE INDEX idx_is_active_courses ON slocloud_tbl_courses(is_active);
 GO
 
 CREATE TRIGGER trg_courses_updated_at
@@ -327,6 +340,7 @@ CREATE TABLE slocloud_tbl_sections (
     section_id NVARCHAR(20) NOT NULL,
     crn NVARCHAR(20),
     instructor_name NVARCHAR(255) NULL,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -340,6 +354,7 @@ CREATE INDEX idx_crn ON slocloud_tbl_sections(crn);
 CREATE UNIQUE INDEX unique_section_crn ON slocloud_tbl_sections(term_fk, crn) WHERE crn IS NOT NULL;
 CREATE INDEX idx_created_by_fk_sections ON slocloud_tbl_sections(created_by_fk);
 CREATE INDEX idx_updated_by_fk_sections ON slocloud_tbl_sections(updated_by_fk);
+CREATE INDEX idx_is_active_sections ON slocloud_tbl_sections(is_active);
 GO
 
 CREATE TRIGGER trg_sections_updated_at
@@ -362,6 +377,7 @@ CREATE TABLE slocloud_tbl_student_learning_outcomes (
     slo_code NVARCHAR(50) NOT NULL,
     slo_description NVARCHAR(MAX) NOT NULL,
     sequence_num INT NOT NULL DEFAULT 0,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -374,6 +390,7 @@ CREATE INDEX idx_course_slo ON slocloud_tbl_student_learning_outcomes(course_fk,
 CREATE INDEX idx_sequence_num_slo ON slocloud_tbl_student_learning_outcomes(sequence_num);
 CREATE INDEX idx_created_by_fk_slo ON slocloud_tbl_student_learning_outcomes(created_by_fk);
 CREATE INDEX idx_updated_by_fk_slo ON slocloud_tbl_student_learning_outcomes(updated_by_fk);
+CREATE INDEX idx_is_active_slo ON slocloud_tbl_student_learning_outcomes(is_active);
 GO
 
 CREATE TRIGGER trg_student_learning_outcomes_updated_at
@@ -397,6 +414,7 @@ CREATE TABLE slocloud_tbl_students (
     students_pk INT IDENTITY(1,1) PRIMARY KEY,
     student_data_encrypted NVARCHAR(MAX) NOT NULL,
     student_id_hash NVARCHAR(64) NOT NULL UNIQUE,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -405,6 +423,7 @@ CREATE TABLE slocloud_tbl_students (
 CREATE INDEX idx_student_id_hash ON slocloud_tbl_students(student_id_hash);
 CREATE INDEX idx_created_by_fk_students ON slocloud_tbl_students(created_by_fk);
 CREATE INDEX idx_updated_by_fk_students ON slocloud_tbl_students(updated_by_fk);
+CREATE INDEX idx_is_active_students ON slocloud_tbl_students(is_active);
 GO
 
 CREATE TRIGGER trg_students_updated_at
@@ -424,6 +443,7 @@ CREATE TABLE slocloud_tbl_enrollment (
     enrollment_pk INT IDENTITY(1,1) PRIMARY KEY,
     section_fk INT NOT NULL,
     student_fk INT NOT NULL,
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -434,6 +454,7 @@ CREATE INDEX idx_section_fk_enroll ON slocloud_tbl_enrollment(section_fk);
 CREATE INDEX idx_student_fk_enroll ON slocloud_tbl_enrollment(student_fk);
 CREATE INDEX idx_created_by_fk_enroll ON slocloud_tbl_enrollment(created_by_fk);
 CREATE INDEX idx_updated_by_fk_enroll ON slocloud_tbl_enrollment(updated_by_fk);
+CREATE INDEX idx_is_active_enroll ON slocloud_tbl_enrollment(is_active);
 GO
 
 CREATE TRIGGER trg_enrollment_updated_at
@@ -455,6 +476,7 @@ CREATE TABLE slocloud_tbl_section_xlist (
     xlist_group NVARCHAR(50) NOT NULL,
     crn NVARCHAR(20) NOT NULL,
     course_number NVARCHAR(50),
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     created_by_fk INT,
@@ -465,6 +487,7 @@ CREATE INDEX idx_term_xlist ON slocloud_tbl_section_xlist(term_fk, xlist_group);
 CREATE INDEX idx_crn_xlist ON slocloud_tbl_section_xlist(crn);
 CREATE INDEX idx_created_by_fk_xlist ON slocloud_tbl_section_xlist(created_by_fk);
 CREATE INDEX idx_updated_by_fk_xlist ON slocloud_tbl_section_xlist(updated_by_fk);
+CREATE INDEX idx_is_active_xlist ON slocloud_tbl_section_xlist(is_active);
 GO
 
 CREATE TRIGGER trg_section_xlist_updated_at
@@ -491,6 +514,7 @@ CREATE TABLE slocloud_tbl_assessments (
     achievement_level NVARCHAR(20) NOT NULL DEFAULT 'not_assessed',
     assessed_date DATE,
     assessor_email NVARCHAR(255),
+    is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     updated_at DATETIME2 NOT NULL DEFAULT GETDATE(),
     CONSTRAINT chk_achievement_level CHECK (achievement_level IN ('met', 'partially_met', 'not_met', 'not_assessed'))
@@ -499,6 +523,7 @@ CREATE INDEX idx_enrollment_fk_assess ON slocloud_tbl_assessments(enrollment_fk)
 CREATE INDEX idx_student_learning_outcome_fk ON slocloud_tbl_assessments(student_learning_outcome_fk);
 CREATE INDEX idx_achievement_level ON slocloud_tbl_assessments(achievement_level);
 CREATE INDEX idx_assessed_date ON slocloud_tbl_assessments(assessed_date);
+CREATE INDEX idx_is_active_assess ON slocloud_tbl_assessments(is_active);
 GO
 
 CREATE TRIGGER trg_assessments_updated_at
@@ -641,6 +666,20 @@ CREATE TABLE slocloud_tbl_lti_nonces (
 );
 CREATE INDEX idx_consumer_key ON slocloud_tbl_lti_nonces(consumer_key);
 CREATE INDEX idx_timestamp ON slocloud_tbl_lti_nonces(timestamp);
+GO
+
+-- ============================================================================
+-- SCHEMA VERSION
+-- ============================================================================
+-- The app version of the last schema change. Upgrades apply the files in
+-- migrations/ from this value forward (see docs/upgrades/README.md).
+
+CREATE TABLE slocloud_tbl_meta (
+    name NVARCHAR(100) NOT NULL PRIMARY KEY,
+    value NVARCHAR(255) NOT NULL,
+    updated_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+INSERT INTO slocloud_tbl_meta (name, value) VALUES ('schema_version', '5.2.1');
 GO
 
 -- ============================================================================

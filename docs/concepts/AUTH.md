@@ -114,9 +114,10 @@ the current single-institution deployment model.
 - No role → read-only. The global `admin` role is the only grant that unlocks
   editing. A legacy `user` role row and a role-less account are the same tier.
 - Deny-by-default: routes not classified in `Core\Authorization` are denied, and
-  the shared `deny()` path returns 403 and logs a `permission_denied` event.
-- Sensitive edits (users, keys, configuration) additionally require recent
-  reauthentication.
+  the shared `deny()` path returns 403 with a sentence saying why (HTML, or JSON
+  for background requests) and logs a `permission_denied` event.
+- There is no separate step-up for sensitive edits: while a session is valid, an
+  administrator can do everything the role allows. Sessions end instead (below).
 
 The account editor exposes exactly these two controls: an **Active** toggle and
 an **Administrator** toggle.
@@ -144,7 +145,12 @@ including student PII, so dashboard logins are issued only to trusted staff.
 - HttpOnly cookies
 - Secure flag (HTTPS only)
 - SameSite=Strict
-- Session timeout: 2 hours
+- Session timeout: 2 hours idle (extendable from its warning), and 20 hours after
+  sign-in however active (WCAG 2.2.1 20-hour exception). Either
+  one signs the user out completely, explains why on the login page, and returns
+  them to the page they were on after signing in. Background requests receive
+  401 `session_ended` JSON, which `system/accessibility.js` turns into a redirect
+  to the login page.
 - Regenerate ID on login
 - Destroy on logout
 

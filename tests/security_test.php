@@ -81,7 +81,35 @@ $check(Authorization::policyForRequest('administration/courses_data.php', 'POST'
 $check(Authorization::policyForRequest('administration/courses.php', 'POST') === 'admin', 'Administration mutations are not restricted to administrators.');
 $check(Authorization::policyForRequest('administration/users_data.php', 'GET') === 'admin', 'User-management data is not restricted to administrators.');
 $check(Authorization::policyForRequest('administration/activity_log.php', 'GET') === 'admin', 'Activity Log is not restricted to administrators.');
-$check(Authorization::policyForRequest('api/rotate_key.php', 'POST') === 'admin_recent_auth', 'Key rotation does not require an administrator with recent authentication.');
+// After a session ends and the user signs in again, only an administration page is a valid destination.
+if (!defined('BASE_URL')) {
+    define('BASE_URL', '/');
+}
+foreach ([
+    'administration/users.php' => '/administration/users.php',
+    'https://evil.example/administration/users.php' => '/administration/',
+    '//evil.example/x.php' => '/administration/',
+    'administration/../login.php' => '/administration/',
+    '' => '/administration/',
+] as $stored => $expected) {
+    $_SESSION['login_return'] = $stored;
+    $check(
+        Authorization::takeLoginReturn() === $expected && !isset($_SESSION['login_return']),
+        "Login return '{$stored}' is not limited to administration pages."
+    );
+}
+$check(Authorization::policyForRequest('api/rotate_key.php', 'POST') === 'admin', 'Key rotation is not restricted to administrators.');
+$check(Authorization::policyForRequest('api/move_key_folder.php', 'POST') === 'admin', 'Moving the keys folder is not restricted to administrators.');
+$check(Authorization::policyForRequest('administration/color_scheme.php', 'GET') === 'admin', 'Color Scheme is not restricted to administrators.');
+$check(Authorization::policyForRequest('administration/color_scheme.php', 'POST') === 'admin', 'Saving the color scheme is not restricted to administrators.');
+// Sessions end after 2 hours idle or 20 hours from sign-in (WCAG 2.2.1's 20-hour exception),
+// with an explanation on the login page.
+$initSource = $source('src/system/includes/init.php');
+$check(
+    preg_match("/> 7200\)\s*\{\s*\\\\SLOCloud\\\\Core\\\\Authorization::endSession\(/", $initSource) === 1
+        && preg_match("/> 72000\)\s*\{\s*\\\\SLOCloud\\\\Core\\\\Authorization::endSession\(/", $initSource) === 1,
+    'Sessions do not end after 2 hours idle and 20 hours from sign-in through endSession().'
+);
 
 $clean = Logger::sanitizeContext([
     'user_id' => 7,
@@ -142,7 +170,9 @@ foreach (['slo' . 'pass', 'slocloud_' . 'lti_key', 'slocloud_' . 'lti_secret', '
     $check(!str_contains($template, $fixedDefault), "Public default remains in configuration template: {$fixedDefault}");
 }
 $setup = $source('src/setup/index.php');
-$check(str_contains($setup, 'setup-token.json') && str_contains($setup, 'setup_csrf'), 'Setup token or CSRF gate is missing.');
+$check(str_contains($setup, 'setupResolveKeysDirectory') && str_contains($setup, 'setup_code_submit') && str_contains($setup, 'setup_csrf'), 'Setup keys-folder verification or CSRF gate is missing.');
+$check(str_contains($setup, "'key_path' => \$keyFile"), 'Setup does not record the key location in config.yaml.');
+$check(str_contains($setup, "bin2hex(random_bytes(32));\n") && str_contains($setup, "'consumer_secret' => 'ENC:' . \$ltiConsumerSecretEncrypted"), 'Setup does not generate and encrypt the LTI consumer secret.');
 $check(!str_contains($setup, "\$adminPassword = '" . 'slo' . "pass'"), 'Installer still creates the fixed administrator password.');
 $check(!str_contains($source('src/system/scripts/create_admin_user.php'), "require_once __DIR__ . '/../../config/config.yaml'"), 'CLI administrator tool directly includes the YAML secret file.');
 
@@ -222,6 +252,10 @@ $check($reloadedConfig->get('database.password') === 'canary-plaintext-secret', 
 $check($reloadedConfig->get('app.numeric_text') === '00123', 'Quoted numeric configuration text changed type or value after save/reload.');
 $check($reloadedConfig->get('app.boolean_text') === 'false', 'Quoted boolean-like configuration text changed type after save/reload.');
 $check($reloadedConfig->get('app.special_text') === 'value: # still text', 'Special characters were not preserved after configuration save/reload.');
+// A failed keys folder move on an older install takes security.key_path back out.
+$reloadedConfig->set('security.key_path', '/srv/keys/key.yaml');
+$reloadedConfig->remove('security.key_path');
+$check(!$reloadedConfig->has('security.key_path') && is_array($reloadedConfig->getRaw('security')), 'Config::remove() did not remove only the named setting.');
 
 file_put_contents($temporaryDirectory . '/config.yaml', "database:\n  password: \"ENC:not-valid-ciphertext\"\nlti:\n  validate_signatures: true\n");
 $resetConfig();
@@ -314,6 +348,24 @@ $check(
         === StudentEncryption::hashCNumberWith('C00123456', str_repeat('c', 64)),
     'Recomputing under the same key is not deterministic, so rotation cannot be idempotent.'
 );
+
+$rotateKeyApiSource = $source('src/api/rotate_key.php');
+// Every key type rewrites stored data and key.yaml together, so none may run
+// against a live site.
+$check(
+    preg_match('/if \(!MAINTENANCE_MODE\) \{/', $rotateKeyApiSource) === 1,
+    'The key rotation API does not require maintenance mode for every key type.'
+);
+
+// Moving the keys folder rewrites config.yaml and deletes the old key file:
+// administrators only, never the emergency account, never on a live site,
+// never alongside a rotation, and never when SLOCloud_KEY_PATH would override it.
+$moveKeyFolderSource = $source('src/api/move_key_folder.php');
+$check(str_contains($moveKeyFolderSource, "\$action === 'move' && !MAINTENANCE_MODE"), 'Moving the keys folder does not require maintenance mode.');
+$check(str_contains($moveKeyFolderSource, "empty(\$_SESSION['is_emergency_admin'])"), 'The emergency admin can move the keys folder.');
+$check(str_contains($moveKeyFolderSource, "hash_equals((string)(\$_SESSION['csrf_token']"), 'Moving the keys folder does not check the CSRF token.');
+$check(str_contains($moveKeyFolderSource, '/var/key_rotation.lock'), 'A keys folder move can overlap a key rotation.');
+$check(str_contains($moveKeyFolderSource, "getenv('SLOCloud_KEY_PATH')"), 'A keys folder move is allowed while SLOCloud_KEY_PATH overrides config.yaml.');
 
 $rotationSource = $source('src/system/scripts/rotate_student_lookup_key.php');
 $check(str_contains($rotationSource, "PHP_SAPI !== 'cli'"), 'The rotation tool is not restricted to CLI execution.');

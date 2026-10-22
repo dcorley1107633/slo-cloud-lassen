@@ -36,7 +36,9 @@ require_once __DIR__ . '/../system/includes/init.php';
     if ($submittedKey !== null) {
         global $config;
         $configuredKey = $config->get('api.monitoring_key', null);
-        if ($configuredKey !== null && hash_equals((string)$configuredKey, $submittedKey)) {
+        // Saving System > Configuration stores an unset key as '', which an
+        // empty X-Api-Key header would otherwise match.
+        if (is_string($configuredKey) && $configuredKey !== '' && hash_equals($configuredKey, (string)$submittedKey)) {
             return; // valid API key
         }
     }
@@ -76,7 +78,6 @@ try {
             'component' => 'configuration',
             'message' => 'Configuration file not found'
         ];
-        $status['overall_status'] = 'degraded';
     }
 } catch (Exception $e) {
     $status['checks']['config'] = [
@@ -84,7 +85,6 @@ try {
         'component' => 'configuration',
         'message' => 'Configuration check failed'
     ];
-    $status['overall_status'] = 'degraded';
 }
 
 // Check 2: Application Version
@@ -136,7 +136,6 @@ try {
             'component' => 'php',
             'message' => 'Missing required PHP extensions/support: ' . implode(', ', $missingExtensions)
         ];
-        $status['overall_status'] = 'degraded';
     }
 } catch (Exception $e) {
     $status['checks']['php_extensions'] = [
@@ -144,7 +143,6 @@ try {
         'component' => 'php',
         'message' => 'PHP extension check failed'
     ];
-    $status['overall_status'] = 'degraded';
 }
 
 // Check 3: Session Support
@@ -165,7 +163,6 @@ try {
             'component' => 'infrastructure',
             'message' => 'Session storage unavailable'
         ];
-        $status['overall_status'] = 'degraded';
     }
 } catch (Exception $e) {
     $status['checks']['session'] = [
@@ -173,7 +170,6 @@ try {
         'component' => 'infrastructure',
         'message' => 'Session check failed'
     ];
-    $status['overall_status'] = 'degraded';
 }
 
 // Check 4: Configuration Decryption (if config exists)
@@ -198,7 +194,6 @@ if ($status['checks']['config']['status'] === 'ok') {
                 'component' => 'configuration',
                 'message' => 'Configuration structure invalid'
             ];
-            $status['overall_status'] = 'degraded';
         }
     } catch (Exception $e) {
         $status['checks']['config_decrypt'] = [
@@ -206,7 +201,6 @@ if ($status['checks']['config']['status'] === 'ok') {
             'component' => 'configuration',
             'message' => 'Configuration parsing failed'
         ];
-        $status['overall_status'] = 'degraded';
     }
 }
 
@@ -240,7 +234,6 @@ if (isset($status['checks']['config_decrypt']) && $status['checks']['config_decr
                         'component' => 'database',
                         'message' => 'Database query test failed'
                     ];
-                    $status['overall_status'] = 'degraded';
                 }
             } catch (Exception $e) {
                 $status['checks']['database_query'] = [
@@ -248,7 +241,6 @@ if (isset($status['checks']['config_decrypt']) && $status['checks']['config_decr
                     'component' => 'database',
                     'message' => 'Database query failed'
                 ];
-                $status['overall_status'] = 'degraded';
             }
         } else {
             $status['checks']['database_connection'] = [
@@ -256,7 +248,6 @@ if (isset($status['checks']['config_decrypt']) && $status['checks']['config_decr
                 'component' => 'database',
                 'message' => 'Database configuration missing'
             ];
-            $status['overall_status'] = 'degraded';
         }
     } catch (Exception $e) {
         $status['checks']['database_connection'] = [
@@ -264,13 +255,12 @@ if (isset($status['checks']['config_decrypt']) && $status['checks']['config_decr
             'component' => 'database',
             'message' => 'Database connection failed'
         ];
-        $status['overall_status'] = 'down';
     }
 }
 
-// Check 7: LTI OAuth Enforcement
-if (isset($configData['lti']['oauth_enforcement'])) {
-    $oauthEnforcement = $configData['lti']['oauth_enforcement'];
+// Check 7: LTI OAuth Enforcement (same setting oauth_validate.php enforces)
+if (isset($config)) {
+    $oauthEnforcement = filter_var($config->get('lti.validate_signatures', true), FILTER_VALIDATE_BOOLEAN);
     if ($oauthEnforcement === true) {
         $status['checks']['oauth_enforcement'] = [
             'status' => 'ok',
@@ -286,9 +276,9 @@ if (isset($configData['lti']['oauth_enforcement'])) {
     }
 }
 
-// Check 8: Debug Mode
-if (isset($configData['app']['debug'])) {
-    $debugMode = $configData['app']['debug'];
+// Check 8: Debug Mode (same interpretation of app.debug_mode as init.php)
+if (isset($config)) {
+    $debugMode = $config->get('app.debug_mode', false) === true || $config->get('app.debug_mode', 'false') === 'true';
     if ($debugMode === false) {
         $status['checks']['debug_mode'] = [
             'status' => 'ok',
@@ -319,9 +309,6 @@ try {
             'component' => 'infrastructure',
             'message' => 'Log directory not writable'
         ];
-        if ($status['overall_status'] === 'operational') {
-            $status['overall_status'] = 'degraded';
-        }
     }
 } catch (Exception $e) {
     $status['checks']['filesystem'] = [
@@ -331,31 +318,79 @@ try {
     ];
 }
 
-// Calculate overall status based on check results
-$criticalCount = 0;
-$warningCount = 0;
-foreach ($status['checks'] as $check) {
-    if ($check['status'] === 'critical') {
-        $criticalCount++;
-    } elseif ($check['status'] === 'warning') {
-        $warningCount++;
+// Check 10: Encryption Key Location
+// key.yaml holds the master keys. Inside the web root its only protection is the
+// web server's deny rules, so any copy found there fails. Candidates follow
+// Config's lookup order, plus the copies key rotation keeps in config/backups.
+// The site's document root counts too: a flat deploy's sibling data directory
+// can sit inside it. Only web-root-relative paths are reported.
+try {
+    $caseInsensitivePaths = PHP_OS_FAMILY === 'Windows';
+    $webRoots = [];
+    foreach ([dirname(__DIR__), (string)($_SERVER['DOCUMENT_ROOT'] ?? '')] as $root) {
+        $resolvedRoot = $root !== '' ? realpath($root) : false;
+        if ($resolvedRoot !== false) {
+            $webRoots[] = rtrim(str_replace('\\', '/', $resolvedRoot), '/') . '/';
+        }
     }
-}
 
-// Override overall status based on critical errors
-if ($criticalCount >= 3) {
-    $status['overall_status'] = 'down';
-} elseif ($criticalCount >= 1) {
-    $status['overall_status'] = 'degraded';
-} elseif ($warningCount >= 2) {
-    $status['overall_status'] = 'degraded';
+    $configDirectory = dirname(__DIR__) . '/config';
+    $keyCandidates = array_merge(
+        $config->keyPathCandidates(),
+        glob($configDirectory . '/backups/*/key.yaml') ?: []
+    );
+
+    $keyFound = false;
+    $exposedKeys = [];
+    foreach ($keyCandidates as $candidate) {
+        $resolvedKey = realpath($candidate);
+        if ($resolvedKey === false || !is_file($resolvedKey)) {
+            continue;
+        }
+        $keyFound = true;
+        $keyPath = str_replace('\\', '/', $resolvedKey);
+        foreach ($webRoots as $webRoot) {
+            $inside = $caseInsensitivePaths
+                ? str_starts_with(strtolower($keyPath), strtolower($webRoot))
+                : str_starts_with($keyPath, $webRoot);
+            if ($inside) {
+                $exposedKeys[substr($keyPath, strlen($webRoot))] = true;
+                break;
+            }
+        }
+    }
+    $exposedKeys = array_keys($exposedKeys);
+
+    if ($exposedKeys !== []) {
+        $listed = array_slice($exposedKeys, 0, 3);
+        $more = count($exposedKeys) - count($listed);
+        $status['checks']['key_location'] = [
+            'status' => 'critical',
+            'component' => 'security',
+            'message' => 'Encryption key file inside the web root: ' . implode(', ', $listed)
+                . ($more > 0 ? " and {$more} more" : '')
+        ];
+    } elseif ($keyFound) {
+        $status['checks']['key_location'] = [
+            'status' => 'ok',
+            'component' => 'security',
+            'message' => 'Encryption key file is outside the web root'
+        ];
+    }
+    // No key file at all is reported by config_decrypt.
+} catch (Throwable $e) {
+    $status['checks']['key_location'] = [
+        'status' => 'warning',
+        'component' => 'security',
+        'message' => 'Encryption key location check failed'
+    ];
 }
 
 // Calculate load time
 $endTime = microtime(true);
 $status['load_time_ms'] = round(($endTime - $startTime) * 1000, 2);
 
-// Check 10: Performance (Load Time)
+// Check 11: Performance (Load Time)
 if ($status['load_time_ms'] < 100) {
     $status['checks']['performance'] = [
         'status' => 'ok',
@@ -368,15 +403,28 @@ if ($status['load_time_ms'] < 100) {
         'component' => 'application',
         'message' => 'Response time: ' . $status['load_time_ms'] . 'ms (slow)'
     ];
-    if ($status['overall_status'] === 'operational') {
-        $status['overall_status'] = 'degraded';
-    }
 } else {
     $status['checks']['performance'] = [
         'status' => 'critical',
         'component' => 'application',
         'message' => 'Response time: ' . $status['load_time_ms'] . 'ms (critical)'
     ];
+}
+
+// Overall status is decided here only. A failing breaking check means the
+// application cannot serve requests (down), even if it is the only one. Any
+// other check that is not ok means it runs with a problem (degraded), no matter
+// how many there are.
+$breakingChecks = ['config', 'config_decrypt', 'php_extensions', 'session', 'database_connection', 'database_query'];
+$status['overall_status'] = 'operational';
+foreach ($status['checks'] as $name => $check) {
+    if ($check['status'] === 'ok') {
+        continue;
+    }
+    if ($check['status'] === 'critical' && in_array($name, $breakingChecks, true)) {
+        $status['overall_status'] = 'down';
+        break;
+    }
     $status['overall_status'] = 'degraded';
 }
 

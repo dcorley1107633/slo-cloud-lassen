@@ -8,7 +8,7 @@ $check = static function (bool $condition, string $message) use (&$failures): vo
 $source = static fn(string $path): string => (string)file_get_contents(__DIR__ . '/../' . $path);
 
 $version = trim($source('src/VERSION'));
-$check($version === '5.1.1', 'Accessibility report test must track the current product version.');
+$check($version === '5.2.5', 'Accessibility report test must track the current product version.');
 
 $sharedCss = $source('src/system/accessibility.css');
 $check(str_contains($sharedCss, ':focus-visible'), 'Shared visible focus styling is missing.');
@@ -41,6 +41,30 @@ $check($contrast('#087990', '#ffffff') >= 4.5, 'Shared informational background 
 $check($contrast('#806000', '#ffffff') >= 4.5, 'Shared warning text fails 4.5:1 against white.');
 $check($contrast('#146c43', '#ffffff') >= 4.5, 'Status success text fails 4.5:1 against white.');
 
+// Color schemes (System > Color Scheme): white text on every scheme color,
+// scheme-colored links on white and light-gray panels, and emphasis text on
+// the scheme's light tint must all reach 4.5:1.
+require_once __DIR__ . '/../src/system/Core/ColorScheme.php';
+foreach (\SLOCloud\Core\ColorScheme::SCHEMES as $schemeName => $scheme) {
+    foreach (['primary', 'dark', 'accent', 'brand'] as $part) {
+        $check($contrast($scheme[$part], '#ffffff') >= 4.5, "Color scheme $schemeName: white text on its $part color fails 4.5:1.");
+    }
+    // Blue keeps Bootstrap's own link color, which is 4.27:1 on light gray;
+    // the added schemes must not repeat that.
+    foreach ($schemeName === \SLOCloud\Core\ColorScheme::DEFAULT ? [] : ['primary', 'dark'] as $part) {
+        $check($contrast($scheme[$part], '#f8f9fa') >= 4.5 && $contrast($scheme[$part], '#f2f2f2') >= 4.5, "Color scheme $schemeName: $part text on light gray or a striped row fails 4.5:1.");
+    }
+    $check($scheme['group'] !== 'Fallout' || isset($scheme['highlight']), "Fallout color scheme $schemeName has no highlight (fourth) color.");
+    if (isset($scheme['highlight'])) {
+        $check($contrast($scheme['highlight'], $scheme['dark']) >= 4.5, "Color scheme $schemeName: highlight text on its dark sidebar color fails 4.5:1.");
+    }
+    $check($contrast($scheme['dark'], \SLOCloud\Core\ColorScheme::tint($scheme['primary'], 0.88)) >= 4.5, "Color scheme $schemeName: emphasis text on its light tint fails 4.5:1.");
+}
+$check(\SLOCloud\Core\ColorScheme::css('blue') === '' && \SLOCloud\Core\ColorScheme::css('not-a-scheme') === '', 'The default Blue scheme, or an unknown scheme, changes the layouts\' own colors.');
+$tealCss = \SLOCloud\Core\ColorScheme::css('teal');
+$check(str_contains($tealCss, '--bs-primary: #0f766e') && str_contains($tealCss, '--primary-dark: #134e4a') && str_contains($tealCss, '.btn-primary {'), 'A color scheme does not recolor Bootstrap primary and the layout brand colors.');
+$check(!preg_match('/outline\s*:|outline-color|--bs-focus-ring|--a11y-focus/', $tealCss), 'A color scheme recolors focus indicators; they must keep the shared tested focus color.');
+
 $sharedJs = $source('src/system/accessibility.js');
 foreach (['a11y-error-summary', 'aria-invalid', 'aria-describedby', 'dataTables_info', 'show.bs.modal', 'hidden.bs.modal'] as $behavior) {
     $check(str_contains($sharedJs, $behavior), "Shared accessibility behavior is missing $behavior support.");
@@ -72,6 +96,13 @@ foreach (array_slice($layoutFiles, 0, 9) as $layoutFile) {
     $check(str_contains($source($layoutFile), 'session_timeout_meta.php'), "$layoutFile does not configure the session warning.");
 }
 
+// The color scheme is printed last in <head>, after the layout's and the page's own styles.
+foreach (array_slice($layoutFiles, 0, 10) as $layoutFile) {
+    $layout = $source($layoutFile);
+    $check(preg_match('#color_scheme_style\.php\'; \?>\s*</head>#', $layout) === 1, "$layoutFile does not apply the color scheme just before </head>.");
+}
+$check(!preg_match('/#(?:0D47A1|1976D2|1565C0)/i', preg_replace('/--(?:primary-dark|accent-blue|brand-teal):\s*#[0-9A-Fa-f]{6};/', '', $source('src/login.php'))), 'The login page uses fixed blues instead of the color scheme variables.');
+
 foreach (['admin', 'default', 'embedded'] as $layout) {
     $header = $source("src/system/plugins/local/theme-adminlte/layouts/$layout/header.php");
     $check(str_contains($header, 'href="#main"') || str_contains($header, '<main id="main"'), "AdminLTE $layout layout has no main-content bypass target.");
@@ -83,6 +114,19 @@ $check(!str_contains($adminHeader, '*:focus:not(:focus-visible)'), 'Admin layout
 $check(substr_count($adminHeader, '<button type="button" class="nav-link" aria-expanded="false" aria-controls="sidebar-') === 8, 'Admin sidebar groups are not native buttons with exposed expanded state.');
 $check(str_contains($adminHeader, 'administration/site_map.php'), 'Admin navigation does not expose the alternate Site Map route.');
 
+// The color scheme has its own page with a swatch chooser that previews live; Configuration does not save it.
+$configPage = $source('src/administration/config.php');
+$check(str_contains($configPage, "'theme.color_scheme' => true") && !str_contains($configPage, 'renderColorSchemePicker'), 'The Configuration page still shows or saves the color scheme.');
+$colorPage = $source('src/administration/color_scheme.php');
+$check(str_contains($colorPage, "renderColorSchemePicker('theme_color_scheme'"), 'The Color Scheme page does not use the swatch chooser.');
+$check(str_contains($colorPage, "hash_equals((string)(\$_SESSION['csrf_token']"), 'The Color Scheme page does not check the CSRF token.');
+$check(str_contains($adminHeader, 'administration/color_scheme.php') && str_contains($adminHeader, "'admin_color_scheme' ? 'aria-current=\"page\"'"), 'Admin navigation does not link Color Scheme with its current-page state.');
+$check(str_contains($source('src/administration/site_map.php'), "'color_scheme.php'"), 'The Site Map does not list Color Scheme.');
+$check(!file_exists(__DIR__ . '/../src/administration/theme_settings.php'), 'The old Theme Settings page still exists.');
+$configForm = $source('src/system/includes/config_form.php');
+$check(str_contains($configForm, '<fieldset') && str_contains($configForm, '<legend') && str_contains($configForm, 'type="radio"') && str_contains($configForm, 'for="'), 'The color scheme chooser is not a labelled radio group.');
+$check(str_contains($configPage, '<label for="keyFolderTarget"') && str_contains($configPage, 'aria-describedby="keyFolderTarget-help"'), 'The keys folder field has no label or help association.');
+
 $login = $source('src/login.php');
 $check(str_contains($login, '<h1 class="h2'), 'Login page has no page-level heading.');
 $check(str_contains($login, 'autocomplete="username"') && str_contains($login, 'autocomplete="current-password"'), 'Login fields lack recognized autocomplete purposes.');
@@ -91,11 +135,21 @@ $check(str_contains($login, 'data-a11y-focus="true"'), 'Login errors are not int
 $check(str_contains($login, 'aria-label="Dismiss error message"'), 'Login error dismiss control has no accessible name.');
 
 $builder = $source('src/administration/dynamic_reports.php');
-foreach (['${p}-field', '${p}-label', '${p}-aggregate', '${p}-sort', '${p}-control', '${p}-operator', '${p}-default'] as $id) {
-    $check(str_contains($builder, 'for="' . $id . '"'), "Dynamic report builder label is not bound to $id.");
+// The builder edits columns and filters as table rows: each generated control
+// is named by its visible column header plus the row's field header.
+foreach (['colhead' => ['label', 'aggregate', 'sort', 'break', 'summarize'], 'filterhead' => ['label', 'control', 'operator', 'default', 'required']] as $prefix => $headers) {
+    foreach ($headers as $header) {
+        $check(str_contains($builder, 'id="' . $prefix . '-' . $header . '"'), "Dynamic report builder header $prefix-$header has no id for labelling row controls.");
+    }
 }
-$check(str_contains($builder, '<legend class="visually-hidden">Column ${i+1}</legend>'), 'Generated report columns are not grouped with a legend.');
-$check(str_contains($builder, '<legend class="visually-hidden">Runtime filter ${i+1}</legend>'), 'Generated report filters are not grouped with a legend.');
+$check(str_contains($builder, 'aria-labelledby="colhead-${header} ${fieldId}"'), 'Generated report column controls are not named by their header and field.');
+$check(str_contains($builder, 'aria-labelledby="filterhead-${header}${extra} ${fieldId}"'), 'Generated report filter controls are not named by their header and field.');
+$check(substr_count($builder, '<th scope="row" class="small fw-normal" id="${fieldId}">') === 2, 'Generated report rows do not identify their field with a row header.');
+$check(!preg_match('/<label class="form-label">/', $builder), 'Dynamic report builder has a label that is not bound to a control.');
+$check(str_contains($builder, '<legend class="form-label fs-6">Joined tables</legend>'), 'Joined-table checkboxes are not grouped with a legend.');
+$check(str_contains($builder, 'aria-describedby="columnsHelp"') && !str_contains($builder, 'title="Start a new group'), 'Break/Summarize instructions are only available as a hover tooltip.');
+$check(str_contains($builder, 'restoreFocus(body, focus)'), 'Re-rendering builder rows drops keyboard focus.');
+$check(str_contains($builder, 'id="editorStatus"') && str_contains($builder, 'announce('), 'Builder row additions, moves, and removals are not announced.');
 
 $assessment = $source('src/lti/assessment.php');
 $check(!str_contains($assessment, '*:focus:not(:focus-visible)'), 'LTI page suppresses keyboard focus fallback.');
@@ -123,7 +177,7 @@ foreach ([
 
 foreach (['admin-interface', 'assessment-page'] as $reportName) {
     $report = $source("src/vpat/$reportName-vpat-v$version.md");
-    $check(str_contains($report, "5.1.1"), "$reportName VPAT does not identify the current version.");
+    $check(str_contains($report, "5.2.5"), "$reportName VPAT does not identify the current version.");
     $check(str_contains($report, 'claims WCAG 2.2 Level AA conformance for this scope'), "$reportName VPAT does not state the current Level AA claim.");
     $check(!str_contains($report, 'Partially Supports'), "$reportName current VPAT still contains partial-conformance language.");
     $check(!preg_match('/^\|\s*[1-4]\.\d+(?:\.\d+)?[^|]*\|\s*Partially Supports\s*\|/m', $report), "$reportName VPAT still contains a partially supporting WCAG result.");
