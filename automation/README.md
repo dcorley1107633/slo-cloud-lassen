@@ -481,7 +481,7 @@ This is why the installer configures what it does. Each line was traced against 
 | `backup` folder added, app pool Modify, kept on undo | Target for the application's snapshot function |
 | `secrets` access after setup is the operator's choice, default Modify | UI key rotation provably needs write access (`api/rotate_key.php`); Read remains available |
 | No default Git ref | The repository has no `main`; deploying an unintended branch is worse than asking |
-| PHP is installer-owned under `<root>\php`; a foreign `php` folder blocks the install | Clean ownership for upgrades and undo; a shared PHP's `php.ini` is never edited |
+| PHP is installer-owned under `<root>\php`; a foreign `php` folder there is backed up and replaced, with a warning | Clean ownership for upgrades and undo; the old folder (including its `php.ini`) is kept in the run's backup folder and rolling back the run restores it. A PHP installed elsewhere is never touched |
 | MinGit only when Git is missing, never on PATH | No system-wide Git install; easy to remove |
 | Site-scoped PHP handler, `localhost`-only SNI binding | No effect on other sites; no production exposure |
 | No HTTP (port 80) binding | Not needed; HTTPS-only |

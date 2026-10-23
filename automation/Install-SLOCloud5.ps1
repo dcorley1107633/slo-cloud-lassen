@@ -200,6 +200,23 @@ function Get-PhpVersionOf([string]$PhpExe) {
     return $r.Text.Trim()
 }
 
+function Test-PhpInstallerManaged {
+    # The php folder is ours when the installer created it, or when it already adopted and replaced a pre-existing one.
+    return ((Test-SloInstallerCreated -Resource "dir:$($P.Php)") -or [bool](Get-SloLastLiveOperation -Kind 'php.replace' -Resource "php:$($P.Php)"))
+}
+
+function Rename-DirWithRetry([string]$Path, [string]$NewName) {
+    # A virus scanner or indexer can briefly hold the freshly extracted files and make the rename fail with "Access denied".
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try { Rename-Item -LiteralPath $Path -NewName $NewName -ErrorAction Stop; return }
+        catch {
+            if ($attempt -eq 5) { throw "Could not rename $Path to $NewName after 5 attempts: $($_.Exception.Message)" }
+            Write-SloLog ("rename of {0} failed ({1}); retrying ({2}/5)" -f $Path, $_.Exception.Message, $attempt) 'WARN'
+            Start-Sleep -Seconds 2
+        }
+    }
+}
+
 function Get-UninstallEntry([string]$NamePattern) {
     $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')
     foreach ($r in $roots) {
@@ -305,8 +322,8 @@ function Invoke-Preflight {
             Add-Finding 'CONFIRM' ("Install root already exists and contains other items ({0}). Its ACL will be replaced (inheritance disabled; SYSTEM and Administrators only), which also applies to those items." -f (($items | Select-Object -First 5 | ForEach-Object { $_.Name }) -join ', '))
         }
     }
-    if ((Test-Path -LiteralPath $P.Php) -and -not (Test-SloInstallerCreated -Resource "dir:$($P.Php)")) {
-        Add-Finding 'BLOCK' "$($P.Php) exists but was not created by this installer. Move it or choose another install root."
+    if ((Test-Path -LiteralPath $P.Php) -and -not (Test-PhpInstallerManaged)) {
+        Add-Finding 'WARN' "$($P.Php) exists but was not created by this installer. It will be backed up and replaced with the PHP version this installer pins; rolling back the run restores it."
     }
     if (Test-Path -LiteralPath (Join-Path $P.WebConfig 'config.yaml')) { Add-Finding 'INFO' 'config.yaml exists: the setup wizard has already run. Application files will be upgraded in place; config, data and secrets are preserved.' }
     foreach ($kv in @(@('SLOCLOUD_DATA_PATH', $P.Data), @('SLOCLOUD_ENV', 'production'))) {
@@ -637,12 +654,14 @@ function Step-Php {
     $target = [string]$Sources.sources.php.version
     $majorMinor = ($target.Split('.')[0..1] -join '')
     $existingVersion = Get-PhpVersionOf $P.PhpExe
-    $ours = Test-SloInstallerCreated -Resource "dir:$($P.Php)"
+    $ours = Test-PhpInstallerManaged
     if ($existingVersion -eq $target -and $ours) {
         Add-SloSkip -Kind 'php.install' -Resource "dir:$($P.Php)" -Description "PHP $target already installed at $($P.Php)"
         return
     }
-    if ((Test-Path -LiteralPath $P.Php) -and -not $ours) { throw "$($P.Php) exists and is not installer-owned." }
+    if ((Test-Path -LiteralPath $P.Php) -and -not $ours) {
+        Add-SloWarning ("{0} exists and was not created by this installer (PHP {1}). It is backed up first, then replaced with PHP {2}; rolling back this run restores it." -f $P.Php, $(if ($existingVersion) { $existingVersion } else { 'version unknown' }), $target)
+    }
 
     $phpSrc = Get-SloSourceFile -Key 'php' -Sources $Sources -SourceCache $SourceCache -TrustedHashes $TrustedHashes -NonInteractive:$NonInteractive
     $sqlSrc = Get-SloSourceFile -Key 'pdo_sqlsrv' -Sources $Sources -SourceCache $SourceCache -TrustedHashes $TrustedHashes -NonInteractive:$NonInteractive
@@ -687,19 +706,30 @@ function Step-Php {
                 -Backup $previous -Inverse @{ type = 'php.restore'; path = $P.Php; previous = $previous; afterHash = $markerHash } `
                 -Apply {
                     # php-cgi.exe processes hold the DLLs open; stop this site's pool (restarted later by the smoke test).
+                    $poolStopped = $false
                     if ((Get-Module WebAdministration) -and (Test-Path -Path "IIS:\AppPools\$AppPoolName") -and (Get-WebAppPoolState -Name $AppPoolName).Value -ne 'Stopped') {
                         Stop-WebAppPool -Name $AppPoolName
+                        $poolStopped = $true
                         Start-Sleep -Seconds 5
                     }
                     Copy-Item -LiteralPath $P.Php -Destination $previous -Recurse -Force
-                    Remove-Item -LiteralPath $P.Php -Recurse -Force
-                    Rename-Item -LiteralPath $stage -NewName (Split-Path -Leaf $P.Php)
+                    try {
+                        Remove-Item -LiteralPath $P.Php -Recurse -Force
+                        Rename-DirWithRetry -Path $stage -NewName (Split-Path -Leaf $P.Php)
+                    } catch {
+                        # Never leave the site without PHP: put the previous runtime back, restart the pool, then fail.
+                        $failure = $_.Exception.Message
+                        if (Test-Path -LiteralPath $P.Php) { Remove-Item -LiteralPath $P.Php -Recurse -Force -ErrorAction SilentlyContinue }
+                        Copy-Item -LiteralPath $previous -Destination $P.Php -Recurse -Force
+                        if ($poolStopped) { try { Start-WebAppPool -Name $AppPoolName } catch { } }
+                        throw "PHP replace failed and the previous PHP was restored: $failure"
+                    }
                 } | Out-Null
         } else {
             Invoke-SloChange -Kind 'php.install' -Resource "dir:$($P.Php)" -Description "install PHP $target to $($P.Php)" -Ownership 'created' `
                 -Before ([pscustomobject]@{ exists = $false }) -After ([pscustomobject]@{ version = $target; phpCgiSha256 = $markerHash }) `
                 -Inverse @{ type = 'dir.remove'; path = $P.Php; recurse = $true; guardPhp = $true } `
-                -Apply { Rename-Item -LiteralPath $stage -NewName (Split-Path -Leaf $P.Php) } | Out-Null
+                -Apply { Rename-DirWithRetry -Path $stage -NewName (Split-Path -Leaf $P.Php) } | Out-Null
         }
     } finally {
         if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
