@@ -4,7 +4,7 @@ PowerShell automation that prepares a Windows Server web node for SLO Cloud 5 an
 
 | Phase | Who does it | What happens |
 |---|---|---|
-| 1. Infrastructure | `Install-SLOCloud5.ps1` | IIS, PHP 8.3 FastCGI, folders and permissions, a localhost HTTPS binding, application files from Git |
+| 1. Infrastructure | `Install-SLOCloud5.ps1` | IIS, PHP 8.5 FastCGI, folders and permissions, a localhost HTTPS binding, application files from Git |
 | 2. Application setup | `/setup/` wizard (part of the app) | Database and schema, admin account, encryption keys (`key.yaml`), `config.yaml`, LTI credentials |
 | 3. Finalize | `Install-SLOCloud5.ps1 -FinalizeSetup` | Final permissions on the secrets folder |
 
@@ -127,7 +127,7 @@ The default install root is `D:\SLO Cloud 5`.
 | `data` | `SLOCLOUD_DATA_PATH`: `var\sessions`, `var\reports`, login throttles, locks, `logs`, `tmp` | modify | **Kept** |
 | `secrets` | Keys folder for the wizard (`key.yaml`) | modify during setup, then per `-SecretsAccessAfterSetup` | **Kept**, contents never read |
 | `backup` | Snapshots from the application's snapshot function (to be implemented); created empty | modify | **Kept** |
-| `php` | PHP 8.3 NTS x64, `pdo_sqlsrv`, `yaml`, CA bundle, `php.ini` | read & execute | Removed if nothing else references it |
+| `php` | PHP 8.5 NTS x64, `pdo_sqlsrv`, `yaml`, CA bundle, `php.ini` | read & execute | Removed if nothing else references it |
 | `tools\mingit` | MinGit, only if `git.exe` wasn't installed; never added to PATH | none | Removed |
 
 The install root has inheritance disabled: SYSTEM and Administrators get full control, plus only the grants above. Users, Authenticated Users, Everyone, IUSR and IIS_IUSRS get nothing.
@@ -352,9 +352,9 @@ Pinned in `sources.json` (reviewed 2026-10-15):
 
 | Key | Version | Verification |
 |---|---|---|
-| `php` | PHP 8.3.35 NTS x64 (VS16) | SHA-256 from php.net `releases.json` |
+| `php` | PHP 8.5.12 NTS x64 (VS17) | SHA-256 from php.net `releases.json` |
 | `pdo_sqlsrv` | Microsoft Drivers for PHP for SQL Server 5.13.3 | SHA-256 from the GitHub release |
-| `yaml` | PECL yaml 2.3.0 for PHP 8.3 NTS x64 | No published hash: confirmed by the operator at first use, then pinned |
+| `yaml` | PECL yaml 2.3.0 for PHP 8.5 NTS x64 | No published hash: confirmed by the operator at first use, then pinned |
 | `cacert` | Mozilla CA bundle 2026-09-25 (curl.se) | SHA-256 |
 | `vcredist` | Visual C++ 2015–2022 x64 | Authenticode, signer Microsoft Corporation |
 | `urlrewrite` | IIS URL Rewrite 2.1 x64 | Authenticode, signer Microsoft Corporation |
@@ -435,7 +435,7 @@ This is why the installer configures what it does. Each line was traced against 
 
 | Requirement | Evidence |
 |---|---|
-| PHP ≥ 8.1, NTS x64 | `private readonly` properties in `system/reporting/*.php`; 8.3 recommended |
+| PHP ≥ 8.1, NTS x64 | `private readonly` properties in `system/reporting/*.php`; 8.5 recommended |
 | `pdo`, `yaml`, `json`, `mbstring`, `openssl`, Argon2id | `api/api.php` check 2b (`php_extensions` is a breaking check) |
 | `pdo_sqlsrv` + ODBC 17/18 | Setup DSN `sqlsrv:Server=host,port;Encrypt=yes;TrustServerCertificate=yes` |
 | `yaml_parse` / `yaml_emit` (PECL) | `setup/index.php` `setupRequireYamlExtension()`, `Config` |

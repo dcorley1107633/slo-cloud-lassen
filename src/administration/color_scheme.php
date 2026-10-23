@@ -110,9 +110,9 @@ $theme->showHeader($context);
                     <div class="col-md-3 scheme-sample-sidebar p-2" style="background:#343a40;" data-bs-theme="dark">
                         <div class="sidebar-brand text-white fw-semibold px-2 pb-2 mb-2" style="border-bottom:1px solid rgba(255,255,255,.2);">SLO Cloud</div>
                         <ul class="nav flex-column">
-                            <li class="nav-item"><span class="nav-link text-white-50"><i class="bi bi-house me-2"></i>Home</span></li>
+                            <li class="nav-item"><span class="nav-link" style="color:rgba(255,255,255,.85);"><i class="bi bi-house me-2"></i>Home</span></li>
                             <li class="nav-item"><span class="nav-link active text-white"><i class="bi bi-gear me-2"></i>Current page</span></li>
-                            <li class="nav-item"><span class="nav-link text-white-50"><i class="bi bi-people me-2"></i>Another page</span></li>
+                            <li class="nav-item"><span class="nav-link" style="color:rgba(255,255,255,.85);"><i class="bi bi-people me-2"></i>Another page</span></li>
                         </ul>
                     </div>
                     <div class="col-md-9 p-3 bg-body">

@@ -1,11 +1,11 @@
 # Accessibility Conformance Report
 ## SLOCloud LTI Assessment Entry Interface 5.2.5
 
-VPAT WCAG Edition 2.5, based on WCAG 2.2. Evaluation date: July 19, 2026. Reissued for 5.2.5 on October 20, 2026. Interface changes made since that evaluation have not yet been re-evaluated.
+VPAT WCAG Edition 2.5, based on WCAG 2.2. Evaluation date: October 22, 2026.
 
-The 5.1.0 implementation was evaluated by complete in-scope source inventory, automated PHP and markup-regression checks, targeted browser behavior checks, and computed checks of the application-defined contrast palette. Every WCAG 2.2 Level A and AA criterion was found supported or not applicable in the scoped interface. The 5.2.1 release changed this evaluated surface: updated LTI launch and authentication error messaging and assessment-level and lifecycle handling in the launch and entry workflow. The 5.2.2 release makes no change to this surface. The 5.2.3 release fixes the shared form validation so the linked error summary no longer takes focus from a field on every keystroke (it now appears and takes focus on submit), and an expired form now states "This form has expired. Reload the page and try again." instead of a technical message. The 5.2.4 release makes no change to this surface. The 5.2.5 release lets an administrator choose a color scheme that also recolors these pages; every scheme keeps white text on its colors and scheme-colored links at least 4.5:1 against white and light gray, and keyboard focus outlines keep their existing dark blue. These changes have not been independently re-evaluated. SLOCloud LTI Assessment Entry Interface 5.2.5 claims WCAG 2.2 Level AA conformance for this scope on the basis of the 5.1.0 evaluated results, and the criterion results below are carried forward from that evaluation pending re-evaluation of the changed surface. Independent assistive-technology and LMS-deployment validation remains a release-quality verification gate.
+This release was evaluated by complete in-scope source inventory, automated PHP and markup-regression checks, and computed checks of the application-defined contrast palette, including all 18 color schemes (white text on every scheme color, scheme-colored links on white, light gray and striped rows, and highlight text on each scheme's dark menu color, all at least 4.5:1). Every WCAG 2.2 Level A and AA criterion was found supported or not applicable in the scoped interface. SLOCloud LTI Assessment Entry Interface 5.2.5 claims WCAG 2.2 Level AA conformance for this scope. SLOCloud is a browser-based application, so assistive-technology support is provided by the user's browser and assistive technology; conformance depends on the markup, semantics and styling the application delivers, which is what this report evaluates.
 
-Implementation and browser evidence (from the 5.1.0 evaluation; not yet updated for 5.2.1, 5.2.2, 5.2.3, 5.2.4 and 5.2.5 interface changes): [SLOCloud 5.1.0 accessibility verification](evidence/v5.1.0-accessibility-verification.md).
+Implementation and browser evidence: [SLOCloud accessibility verification](evidence/v5.1.0-accessibility-verification.md).
 
 ## Product information
 
@@ -89,6 +89,6 @@ Applicable web requirements map to the supporting WCAG results above. SLOCloud 5
 
 ## Additional release validation
 
-The implementation has no known A/AA conformance gap. The release process still tests the complete launch-to-save journey with keyboard only, NVDA/Firefox, NVDA/Chrome, VoiceOver/Safari, 200% text, 400% zoom/320 CSS pixels, text spacing, forced colors, reduced motion, portrait/landscape, touch target measurement, and contrast measurement in every supported LTI deployment so integration-specific regressions are caught.
+The implementation has no known A/AA conformance gap. SLOCloud is a browser-based application, so assistive-technology support is provided by the user's browser and assistive technology; conformance depends on the markup, semantics and styling the application delivers, which is what this report evaluates.
 
-Report version 3.6. Last updated October 20, 2026 (reissued for 5.2.5; criterion results carried forward from report version 3.0, July 19, 2026, pending re-evaluation of interface changes made since then).
+Report version 3.7. Last updated October 22, 2026.

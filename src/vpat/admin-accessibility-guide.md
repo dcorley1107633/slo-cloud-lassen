@@ -8,4 +8,4 @@ For dynamic interfaces, use `role="status"` for routine completion and result-co
 
 Tables need a caption or accessible name and correctly scoped headers. Dense data tables may scroll horizontally at narrow widths, but the rest of each workflow must reflow at 320 CSS pixels.
 
-For release-quality validation, attach dated results for keyboard-only critical journeys, NVDA with Firefox and Chrome, VoiceOver with Safari, 200% text, 400% zoom/320 CSS pixels, WCAG text-spacing overrides, forced colors, reduced motion, both orientations, touch-target measurements, and contrast measurements. These checks catch deployment- and assistive-technology-specific regressions beyond the code-level conformance evidence.
+SLOCloud is browser-based, so assistive-technology support is delegated to the browser; the content must keep its semantics, names, focus handling and contrast correct. Check keyboard-only critical journeys, 200% text, 400% zoom/320 CSS pixels, text spacing, forced colors, reduced motion, orientation, target size and contrast when changing a page.

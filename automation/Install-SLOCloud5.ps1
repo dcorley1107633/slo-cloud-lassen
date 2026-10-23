@@ -434,7 +434,7 @@ function Step-WindowsFeatures {
 
 function Step-VcRedist {
     $state = Get-VcRedistState
-    if ($state.installed -and $state.minor -ge 29) { Add-SloSkip -Kind 'package.install' -Resource 'package:vcredist-x64' -Description "Visual C++ 2015-2022 x64 runtime present ($($state.version))"; return }
+    if ($state.installed -and $state.minor -ge 30) { Add-SloSkip -Kind 'package.install' -Resource 'package:vcredist-x64' -Description "Visual C++ 2015-2022 x64 runtime present ($($state.version))"; return }
     $src = Get-SloSourceFile -Key 'vcredist' -Sources $Sources -SourceCache $SourceCache -NonInteractive:$NonInteractive
     Invoke-SloChange -Kind 'package.install' -Resource 'package:vcredist-x64' -Description 'install Visual C++ 2015-2022 x64 runtime' `
         -Ownership $(if ($state.installed) { 'modified' } else { 'created' }) -Before $state `

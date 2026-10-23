@@ -18,6 +18,13 @@
   summary used to name only the course. This affects the PSLO,
   Program-Course Mapping, CSLO, CSLO-PSLO Mapping and Section files. The
   import itself is unchanged.
+- The Important notice on Term Imports (Normalized) still asks for the files
+  in order, 1 through 12, and now explains how to fix an import done out of
+  order. Imports update the records they match rather than adding
+  duplicates, so importing again is safe: importing a parent's file after
+  the fact replaces the "Auto-created: …" placeholder names and term dates,
+  and skipped rows are saved by importing the missing file and then the
+  skipped file again.
 
 ## v5.2.5 (2026-10-20)
 

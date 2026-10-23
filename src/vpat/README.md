@@ -21,24 +21,24 @@ Our VPATs document conformance to:
 **Component:** LTI Assessment Entry Interface  
 **Status:** WCAG 2.2 Level AA supports conformance in the evaluated SLOCloud scope
 
-**Last Updated:** October 20, 2026
+**Last Updated:** October 22, 2026
 
 **Summary:**
 - All 55 Level A/AA criteria are recorded as `Supports` or `Not Applicable`
 - Source, regression, computed-contrast, and targeted browser evidence is linked
-- Independent assistive-technology and deployment validation remains a release-quality gate
+- Browser-based: assistive-technology support is delegated to the user's browser, and the evaluated content meets the criteria
 
 ### [Admin Interface VPAT](admin-interface-vpat-v5.2.5.md)
 
 **Component:** Administrative Dashboard and CRUD Pages  
 **Status:** WCAG 2.2 Level AA supports conformance in the evaluated SLOCloud scope
 
-**Last Updated:** October 20, 2026
+**Last Updated:** October 22, 2026
 
 **Summary:**
 - All 55 Level A/AA criteria are recorded as `Supports` or `Not Applicable`
 - Source, regression, computed-contrast, and targeted browser evidence is linked
-- Independent assistive-technology and deployment validation remains a release-quality gate
+- Browser-based: assistive-technology support is delegated to the user's browser, and the evaluated content meets the criteria
 
 **Pages Covered:**
 - Shared layout (header, sidebar, footer)

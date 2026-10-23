@@ -67,7 +67,7 @@ Install-WindowsFeature Web-Server,Web-Default-Doc,Web-Static-Content,Web-Http-Er
 |---|---|
 | IIS URL Rewrite | 2.1 (required by `web.config`; without it every request returns 500.19) |
 | Visual C++ Redistributable | 2015–2022 x64, latest |
-| PHP | 8.3 NTS x64 (8.1 minimum). Installer pins 8.3.35 |
+| PHP | 8.5 NTS x64 (8.1 minimum). Installer pins 8.5.12 |
 | Microsoft ODBC Driver for SQL Server | 18 x64 (17 supported) |
 | Microsoft Drivers for PHP for SQL Server | 5.11+ (installer pins 5.13.3); `pdo_sqlsrv` DLL matching the PHP version, NTS, x64 |
 | PECL yaml | DLL matching the PHP version, NTS, x64 (installer pins 2.3.0). `yaml.dll` goes beside `php-cgi.exe` |

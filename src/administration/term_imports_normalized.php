@@ -1890,11 +1890,15 @@ $importPlans = [
             <?php endforeach; ?>
         </div>
         
-        <!-- Import Order Warning -->
+        <!-- Import Order -->
         <div class="alert alert-warning mt-4">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            <strong>Important:</strong> Files must be imported in order (1 through 12) to maintain referential integrity. 
-            Each file references entities defined in earlier files.
+            <h2 class="h6 alert-heading fw-semibold"><i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>Important: import the files in order, 1 through 12</h2>
+            <p>Each file refers to records from earlier files, so importing in order gets everything right on the first pass.</p>
+            <p class="mb-1">An import done out of order can be fixed by importing again. Every import updates the records it matches instead of adding duplicates, so importing a file again is safe.</p>
+            <ul class="mb-0">
+                <li>With <strong>Auto-create missing parent records</strong> on, a missing parent is added with a placeholder name such as &ldquo;Auto-created: ENGL-101&rdquo; (a term also gets placeholder dates). Importing that parent&rsquo;s file afterwards replaces the placeholders with the real names, dates and links.</li>
+                <li>Rows that were skipped are not saved. That happens when auto-create is off, or when a row needs an ISLO (File 3), a CSLO (File 8) or a section (File 10) that is not there yet. Import the missing file, then import the skipped file again.</li>
+            </ul>
         </div>
         
     </div>

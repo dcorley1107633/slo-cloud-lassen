@@ -183,12 +183,12 @@ foreach (['admin-interface', 'assessment-page'] as $reportName) {
     $check(!preg_match('/^\|\s*[1-4]\.\d+(?:\.\d+)?[^|]*\|\s*Partially Supports\s*\|/m', $report), "$reportName VPAT still contains a partially supporting WCAG result.");
     preg_match_all('/^\|\s*[1-4]\.\d+(?:\.\d+)?[^|]*\|\s*(?:Supports|Not Applicable)\s*\|/m', $report, $criterionRows);
     $check(count($criterionRows[0]) === 55, "$reportName VPAT does not contain 55 supported or not-applicable A/AA results.");
-    $check(str_contains($report, 'Independent') || str_contains($report, 'independent'), "$reportName VPAT does not record the independent-testing gap.");
+    $check(str_contains($report, 'assistive-technology support is provided by the user\'s browser'), "$reportName VPAT does not state that assistive-technology support is delegated to the browser.");
 }
 
 $vpatIndex = $source('src/administration/vpat.php');
-$check(str_contains($vpatIndex, 'admin-interface-vpat-v5.1.0.md'), 'VPAT index does not link the current admin report.');
-$check(str_contains($vpatIndex, 'assessment-page-vpat-v5.1.0.md'), 'VPAT index does not link the current assessment report.');
+$check(str_contains($vpatIndex, 'admin-interface-vpat-v5.2.5.md'), 'VPAT index does not link the current admin report.');
+$check(str_contains($vpatIndex, 'assessment-page-vpat-v5.2.5.md'), 'VPAT index does not link the current assessment report.');
 $check(substr_count($vpatIndex, '<caption') >= 2, 'VPAT data tables lack accessible captions.');
 $check(substr_count($vpatIndex, 'Level AA: Supports') >= 2, 'VPAT index does not show both current scopes as supporting Level AA.');
 
