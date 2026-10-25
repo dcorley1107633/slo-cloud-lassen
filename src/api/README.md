@@ -21,6 +21,7 @@ Health check and monitoring endpoints for SLOCloud application.
 {
     "timestamp": "2026-03-22T14:30:00-05:00",
     "version": "1.0.0-beta",
+    "php_version": "8.5.12",
     "overall_status": "operational",
     "load_time_ms": 45.23,
     "checks": {

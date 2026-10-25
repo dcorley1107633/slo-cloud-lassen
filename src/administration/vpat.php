@@ -65,14 +65,14 @@ $theme->showHeader($context);
                         <tbody>
                             <tr>
                                 <td><strong>v<?= htmlspecialchars(APP_VERSION) ?></strong> <span class="badge bg-primary">Current</span></td>
-                                <td>October 22, 2026</td>
+                                <td>October 24, 2026</td>
                                 <td>
                                     <span class="badge bg-success me-1">Level A: Supports</span>
                                     <span class="badge bg-success">Level AA: Supports</span>
                                     <span class="visually-hidden">All applicable WCAG 2.2 Level A and AA criteria support conformance in the evaluated scope</span>
                                 </td>
                                 <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.5.md" class="btn btn-sm btn-primary">
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.7.md" class="btn btn-sm btn-primary">
                                         <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
                                     </a>
                                 </td>
@@ -97,14 +97,14 @@ $theme->showHeader($context);
                         <tbody>
                             <tr>
                                 <td><strong>v<?= htmlspecialchars(APP_VERSION) ?></strong> <span class="badge bg-primary">Current</span></td>
-                                <td>October 22, 2026</td>
+                                <td>October 24, 2026</td>
                                 <td>
                                     <span class="badge bg-success me-1">Level A: Supports</span>
                                     <span class="badge bg-success">Level AA: Supports</span>
                                     <span class="visually-hidden">All applicable WCAG 2.2 Level A and AA criteria support conformance in the evaluated scope</span>
                                 </td>
                                 <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.5.md" class="btn btn-sm btn-primary">
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.7.md" class="btn btn-sm btn-primary">
                                         <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
                                     </a>
                                 </td>

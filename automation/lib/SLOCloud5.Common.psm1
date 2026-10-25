@@ -187,9 +187,9 @@ function Invoke-SloNative {
     <#
         Runs a native executable without letting stderr output become a
         terminating PowerShell error (Windows PowerShell 5.1 behaviour with
-        2>&1 under ErrorActionPreference=Stop). -Interactive leaves stdin/stdout
-        attached to the console (used for git operations that may prompt for
-        credentials, so nothing typed is captured or logged).
+        2>&1 under ErrorActionPreference=Stop). -Interactive is for git operations
+        that may prompt for credentials: output is echoed live and kept for the
+        failure message, and nothing typed is captured or logged.
     #>
     param(
         [Parameter(Mandatory)][string]$FilePath,
@@ -204,9 +204,10 @@ function Invoke-SloNative {
     $ErrorActionPreference = 'Continue'
     try {
         if ($Interactive) {
-            & $FilePath @Arguments
+            # Output is echoed live and also kept, so a failure reports the tool's own message.
+            # Prompts for credentials are read from the console device, not stdin/stdout, so what is typed stays uncaptured.
+            $out = @(& $FilePath @Arguments 2>&1 | ForEach-Object { $line = "$_"; Write-Host $line; $line })
             $code = $LASTEXITCODE
-            $out = @()
         } else {
             $out = @(& $FilePath @Arguments 2>&1 | ForEach-Object { "$_" })
             $code = $LASTEXITCODE

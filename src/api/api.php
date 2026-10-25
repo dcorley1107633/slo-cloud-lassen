@@ -55,6 +55,7 @@ header('Content-Type: application/json');
 $status = [
     'timestamp' => date('c'),
     'version' => null,
+    'php_version' => PHP_VERSION,
     'overall_status' => 'operational',
     'checks' => [],
     '_meta' => [

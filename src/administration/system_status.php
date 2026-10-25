@@ -237,6 +237,9 @@ function renderStatus(data) {
     if (data.version) {
         metadataHtml = '<strong>Version:</strong> ' + htmlspecialchars(data.version) + ' | ' + metadataHtml;
     }
+    if (data.php_version) {
+        metadataHtml += ' | <strong>PHP:</strong> ' + htmlspecialchars(data.php_version);
+    }
     if (data.load_time_ms) {
         metadataHtml += ' | <strong>Load time:</strong> ' + data.load_time_ms + 'ms';
     }

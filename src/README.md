@@ -16,7 +16,7 @@ src/
 +-- administration/           # Admin pages (terms, programs, courses, students, reports)
 +-- api/                      # Internal AJAX endpoints
 +-- lti/                      # LTI 1.1/1.3 launch and JWKS endpoints
-+-- saml/                     # SAML authentication handlers
++-- saml/                     # SAML 2.0 single sign-on: sso (start), acs (sign-in), metadata, slo (logout)
 +-- setup/                    # Web-based setup wizard (disable after install)
 +-- sessions/                 # PHP session storage (write access required)
 +-- vpat/                     # Accessibility conformance reports (WCAG 2.2)
@@ -33,6 +33,7 @@ src/
     |   +-- schema_mssql.sql  # SQL Server schema
     |   +-- migrations/       # Incremental schema migrations
     +-- includes/             # Shared page components (init, session, messages)
+    +-- lib/                  # Bundled third-party PHP libraries (SAML); see lib/README.md
     +-- plugins/              # Plugin framework and local plugins
     +-- scripts/              # CLI maintenance scripts
 ```

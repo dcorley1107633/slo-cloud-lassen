@@ -98,8 +98,15 @@ final class LtiLaunchContext
     {
         $bannerTerm = trim((string)($launch['lti_term_id'] ?? ''));
         $launchCrn = trim((string)($launch['lti_crn'] ?? ''));
-        if ($bannerTerm === '' || $launchCrn === '') {
-            throw new LtiAuthorizationException('The launch did not identify a course section.');
+        // The term is only known when lti.offering_format defines a {TERM}
+        // token (or for XLS cross-listings, which embed it). Without one the
+        // section is matched on CRN alone.
+        if ($launchCrn === '') {
+            throw new LtiAuthorizationException(sprintf(
+                'The launch did not identify a course section (parsed CRN "%s", term "%s").',
+                $launchCrn,
+                $bannerTerm
+            ));
         }
 
         $xlistGroup = self::crossListGroup($launchCrn, $bannerTerm);
@@ -127,16 +134,25 @@ final class LtiLaunchContext
                 . "FROM {$dbPrefix}sections s "
                 . "JOIN {$dbPrefix}terms t ON t.terms_pk = s.term_fk "
                 . "JOIN {$dbPrefix}courses c ON c.courses_pk = s.course_fk "
-                . "WHERE t.banner_term = ? AND s.crn = ?",
-                [$bannerTerm, $launchCrn],
-                'ss'
+                . "WHERE " . ($bannerTerm !== '' ? "t.banner_term = ? AND " : '') . "s.crn = ?",
+                $bannerTerm !== '' ? [$bannerTerm, $launchCrn] : [$launchCrn],
+                $bannerTerm !== '' ? 'ss' : 's'
             );
             $rows = $result ? $result->fetchAll() : [];
             $sections = self::normalizeSections($rows, false);
         }
 
         if ($sections === []) {
-            throw new LtiAuthorizationException('The launched section is not available.');
+            throw new LtiAuthorizationException(sprintf(
+                $xlistGroup !== null
+                    ? 'No sections found for cross-list group "%2$s" in term "%3$s" (launch CRN "%1$s").'
+                    : ($bannerTerm !== ''
+                        ? 'No section in the database matches CRN "%1$s" in banner term "%3$s".'
+                        : 'No section in the database matches CRN "%1$s" (the launch carries no term).'),
+                $launchCrn,
+                (string)$xlistGroup,
+                $bannerTerm
+            ));
         }
 
         $first = $sections[0];
@@ -159,7 +175,11 @@ final class LtiLaunchContext
                 return $section;
             }
         }
-        throw new LtiAuthorizationException('The requested section is outside this launch.');
+        throw new LtiAuthorizationException(sprintf(
+            'Section %d is not part of this launch (launch sections: %s).',
+            $sectionPk,
+            implode(', ', array_map(static fn($x) => (string)($x['section_pk'] ?? '?'), $context['sections'] ?? [])) ?: 'none'
+        ));
     }
 
     public static function authorizeSlo(
@@ -191,7 +211,14 @@ final class LtiLaunchContext
         );
         $row = $result ? $result->fetch() : false;
         if (!$row) {
-            throw new LtiAuthorizationException('The requested outcome is outside this launch.');
+            throw new LtiAuthorizationException(sprintf(
+                'Outcome %d does not exist for course %s (section %d, CRN %s, term %s).',
+                $sloPk,
+                $section['course_number'] ?: ('ID ' . $section['course_fk']),
+                $sectionPk,
+                $section['crn'],
+                $section['term_code']
+            ));
         }
         return $row;
     }
@@ -229,7 +256,14 @@ final class LtiLaunchContext
         );
         $row = $result ? $result->fetch() : false;
         if (!$row) {
-            throw new LtiAuthorizationException('The requested enrollment is outside this launch.');
+            throw new LtiAuthorizationException(sprintf(
+                'Enrollment %d is not a student enrolled in section %d (%s, CRN %s) for outcome %d.',
+                $enrollmentPk,
+                $sectionPk,
+                $section['course_number'] ?: ('course ID ' . $section['course_fk']),
+                $section['crn'],
+                $sloPk
+            ));
         }
         return $row;
     }
@@ -242,7 +276,11 @@ final class LtiLaunchContext
         }
         if (!preg_match('/^XLS(.+)(\d{6})$/i', $normalized, $matches)
             || !hash_equals($bannerTerm, $matches[2])) {
-            throw new LtiAuthorizationException('The cross-listed launch context is invalid.');
+            throw new LtiAuthorizationException(sprintf(
+                'Cross-list launch CRN "%s" does not end in the launch term "%s".',
+                $launchCrn,
+                $bannerTerm
+            ));
         }
         return $matches[1];
     }
@@ -270,16 +308,28 @@ final class LtiLaunchContext
             return [];
         }
 
+        if (!$crosslisted && count($rows) > 1) {
+            throw new LtiAuthorizationException(sprintf(
+                'CRN "%s" matched %d sections in terms %s. Add {TERM} to lti.offering_format so the launch carries a term.',
+                (string)($rows[0]['crn'] ?? ''),
+                count($rows),
+                implode(', ', array_unique(array_map(static fn($r) => (string)($r['banner_term'] ?? '?'), $rows)))
+            ));
+        }
+
         $sections = [];
         $seenCrns = [];
         foreach ($rows as $row) {
             $expectedCrn = (string)($row['xlist_crn'] ?? $row['crn'] ?? '');
             $sectionPk = (int)($row['sections_pk'] ?? 0);
             if ($expectedCrn === '' || $sectionPk <= 0 || (string)($row['crn'] ?? '') !== $expectedCrn) {
-                throw new LtiAuthorizationException('The launch contains an unresolved section.');
+                throw new LtiAuthorizationException(sprintf(
+                    'Cross-listed CRN "%s" has no matching section row in the database.',
+                    $expectedCrn
+                ));
             }
             if (isset($seenCrns[$expectedCrn])) {
-                throw new LtiAuthorizationException('The launch contains an ambiguous section.');
+                throw new LtiAuthorizationException(sprintf('CRN "%s" matched more than one section.', $expectedCrn));
             }
             $seenCrns[$expectedCrn] = true;
             $sections[] = [
@@ -297,7 +347,7 @@ final class LtiLaunchContext
         }
 
         if (!$crosslisted && count($sections) !== 1) {
-            throw new LtiAuthorizationException('The launched section is ambiguous.');
+            throw new LtiAuthorizationException(sprintf('The launch matched %d sections; expected exactly 1.', count($sections)));
         }
         return $sections;
     }

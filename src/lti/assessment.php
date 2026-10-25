@@ -38,12 +38,20 @@ require_once __DIR__ . '/../system/includes/message_page.php';
 // strip query strings on form submit.
 $ltiToken = null;
 $rawToken = $_GET['lt'] ?? $_POST['lt'] ?? '';
+$launchProblem = $rawToken === ''
+    ? 'No launch token (lt) was passed in the URL; the page was opened directly instead of from the LMS.'
+    : '';
 if (preg_match('/^[0-9a-f]{32}$/', $rawToken)) {
     $ltiToken = $rawToken;
+} elseif ($rawToken !== '') {
+    $launchProblem = 'The launch token passed in the URL is malformed: "' . substr((string)$rawToken, 0, 60) . '".';
 }
 $launchData = ($ltiToken !== null && isset($_SESSION['lti_launches'][$ltiToken]))
     ? $_SESSION['lti_launches'][$ltiToken]
     : null;
+if ($ltiToken !== null && $launchData === null) {
+    $launchProblem = 'Launch token ' . substr($ltiToken, 0, 8) . '... is not in your session; the session was reset, the browser cookies were blocked, or the launch was opened in another browser.';
+}
 
 // Enforce the same eight-hour lifetime here as launch.php. Pruning only when a
 // new launch arrives would otherwise allow an old assessment URL to remain
@@ -57,6 +65,7 @@ if ($launchData !== null && ($lastLaunchActivity <= 0 || (time() - $lastLaunchAc
         unset($_SESSION['lti_launches'][$ltiToken]);
     }
     $launchData = null;
+    $launchProblem = 'Launch token ' . substr((string)$ltiToken, 0, 8) . '... is older than 8 hours and was discarded.';
 }
 
 // Initialize StudentEncryption for decrypting student data
@@ -68,7 +77,7 @@ if (empty($launchData['lti_authenticated'])) {
     render_message_page(
         'warning',
         'Session Expired',
-        'Your session has expired, or this page was opened directly. '
+        ($launchProblem !== '' ? $launchProblem . ' ' : 'Your session has expired, or this page was opened directly. ')
         . 'For security reasons, assessments must be launched from your Learning Management System. '
         . 'Please return to your course site and click the assessment link again.'
     );
@@ -192,15 +201,28 @@ try {
 } catch (\SLOCloud\Core\LtiAuthorizationException $e) {
     $logger->warning('LTI assessment context resolution denied', [
         'user_id' => $launchData['lti_user_id'] ?? '',
+        'crn' => $launchData['lti_crn'] ?? '',
+        'term' => $launchData['lti_term_id'] ?? '',
         'reason' => $e->getMessage(),
     ]);
     http_response_code(403);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Access denied.']);
+        echo json_encode(['success' => false, 'message' => 'Not saved: ' . $e->getMessage()]);
         exit;
     }
-    render_message_page('error', 'Course Not Available', 'This launch is not authorized for an available course section.');
+    render_message_page(
+        'error',
+        'Course Not Available',
+        sprintf(
+            '%s Launch had CRN "%s", term "%s", course "%s", context label "%s".',
+            $e->getMessage(),
+            (string)($launchData['lti_crn'] ?? ''),
+            (string)($launchData['lti_term_id'] ?? ''),
+            (string)($launchData['lti_course_number'] ?? ''),
+            (string)($launchData['lti_context_label'] ?? '')
+        )
+    );
     exit;
 }
 
@@ -318,7 +340,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sectionPk = (int)($_POST['section_pk'] ?? 0);
         $sloId = (int)($_POST['slo_id'] ?? 0);
         if ($sectionPk <= 0 || $sloId <= 0) {
-            throw new \SLOCloud\Core\LtiAuthorizationException('The requested target is invalid.');
+            throw new \SLOCloud\Core\LtiAuthorizationException(sprintf(
+                'The save request is missing a valid target: section_pk "%s", slo_id "%s".',
+                substr((string)($_POST['section_pk'] ?? ''), 0, 40),
+                substr((string)($_POST['slo_id'] ?? ''), 0, 40)
+            ));
         }
 
         $authorizedTarget = \SLOCloud\Core\LtiLaunchContext::authorizeSlo(
@@ -400,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'save_assessments') {
             $outcomes = $_POST['outcome'] ?? [];
             if (!is_array($outcomes) || $outcomes === []) {
-                throw new \SLOCloud\Core\LtiAuthorizationException('No authorized enrollment was supplied.');
+                throw new \SLOCloud\Core\LtiAuthorizationException('The save request contained no student ratings (no outcome[] values were submitted); the roster may be empty.');
             }
 
             // Authorize the complete batch before beginning any mutation.
@@ -409,7 +435,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($outcomes as $enrollmentId => $achievementLevel) {
                 $enrollmentId = (int)$enrollmentId;
                 if ($enrollmentId <= 0 || !is_string($achievementLevel)) {
-                    throw new \SLOCloud\Core\LtiAuthorizationException('The requested enrollment is invalid.');
+                    throw new \SLOCloud\Core\LtiAuthorizationException(sprintf(
+                        'Enrollment ID "%s" in the save request is not valid, or its rating is not text.',
+                        substr((string)$enrollmentId, 0, 40)
+                    ));
                 }
                 if (!in_array($achievementLevel, $validLevels, true)) {
                     throw new \InvalidArgumentException('The achievement level is invalid.');
@@ -507,7 +536,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => false,
-                'message' => $authorizationDenied ? 'Access denied.' : 'The assessment could not be saved.',
+                'message' => $authorizationDenied
+                    ? 'Not saved: ' . $e->getMessage()
+                    : 'The assessment could not be saved: ' . $e->getMessage(),
             ]);
             exit;
         }
@@ -549,11 +580,13 @@ $courseSections = array_map(
 $selectedTermCode = '';
 $selectedSectionPk = null; // sections_pk for URL/UI state
 $selectedCourseFk = null;
+$selectedSectionLabel = 'the selected section';
 $courseNumbers = [];
 
 // A requested section is only a selector within the stored launch scope.
-$selectedSectionPk = isset($_GET['section_id'])
-    ? (int)$_GET['section_id']
+$rawSectionParam = isset($_GET['section_id']) ? (string)$_GET['section_id'] : null;
+$selectedSectionPk = $rawSectionParam !== null
+    ? (int)$rawSectionParam
     : (int)($courseSections[0]['sections_pk'] ?? 0);
 $authorizedSectionPks = array_map('intval', array_column($courseSections, 'sections_pk'));
 if ($selectedSectionPk <= 0 || !in_array($selectedSectionPk, $authorizedSectionPks, true)) {
@@ -564,7 +597,18 @@ if ($selectedSectionPk <= 0 || !in_array($selectedSectionPk, $authorizedSectionP
         'session_id' => session_id(),
     ]);
     http_response_code(403);
-    render_message_page('error', 'Access Denied', 'The requested section is outside this LTI launch.');
+    render_message_page('error', 'Section Not Found', sprintf(
+        $rawSectionParam !== null && !ctype_digit($rawSectionParam)
+            ? 'section_id "%2$s" passed in the URL is not a valid section number. Sections in this launch: %3$s (launch CRN "%4$s", term "%5$s").'
+            : ($rawSectionParam === null
+                ? 'This launch has no sections to assess (launch CRN "%4$s", term "%5$s").'
+                : 'Section %1$d was not found in this launch. Sections in this launch: %3$s (launch CRN "%4$s", term "%5$s").'),
+        $selectedSectionPk,
+        (string)$rawSectionParam,
+        implode(', ', $authorizedSectionPks) ?: 'none',
+        (string)($launchData['lti_crn'] ?? ''),
+        (string)($launchData['lti_term_id'] ?? '')
+    ));
     exit;
 }
 
@@ -573,6 +617,13 @@ foreach ($courseSections as $cs) {
         $selectedTermCode = $cs['term_code'];
         $courseNumbers[$cs['sections_pk']] = $cs['course_number'];
         $selectedCourseFk = $cs['course_fk'];
+        $selectedSectionLabel = sprintf(
+            '%s%s, CRN %s, term %s',
+            $cs['course_number'],
+            !empty($cs['course_name']) ? ' (' . $cs['course_name'] . ')' : '',
+            $cs['crn'] ?? $cs['section_id'] ?? '?',
+            $cs['term_code']
+        );
         break;
     }
 }
@@ -594,7 +645,8 @@ if ($selectedCourseFk) {
 // SECURITY: Validate selected SLO belongs to authorized course
 $selectedSloId = 0;
 if (isset($_GET['slo_id']) && !empty($slos)) {
-    $requestedSloId = (int)$_GET['slo_id'];
+    $rawSloParam = (string)$_GET['slo_id'];
+    $requestedSloId = (int)$rawSloParam;
     $authorizedSloIds = array_map('intval', array_column($slos, 'student_learning_outcomes_pk'));
     
     if (in_array($requestedSloId, $authorizedSloIds, true)) {
@@ -610,7 +662,14 @@ if (isset($_GET['slo_id']) && !empty($slos)) {
         ]);
         
         http_response_code(403);
-        render_message_page('error', 'Access Denied', 'The requested learning outcome is outside this LTI launch.');
+        render_message_page('error', 'Outcome Not Found', sprintf(
+            ctype_digit($rawSloParam)
+                ? 'Outcome %d was not found for %s. Outcome IDs defined for this course: %s.'
+                : 'slo_id "%s" passed in the URL is not a valid outcome number for %s. Outcome IDs defined for this course: %s.',
+            ctype_digit($rawSloParam) ? $requestedSloId : $rawSloParam,
+            $selectedSectionLabel,
+            implode(', ', $authorizedSloIds)
+        ));
         exit;
     }
 } elseif (!empty($slos)) {
@@ -633,7 +692,13 @@ if ($selectedSloId > 0) {
             'reason' => $e->getMessage(),
         ]);
         http_response_code(403);
-        render_message_page('error', 'Access Denied', 'The requested assessment is outside this LTI launch.');
+        render_message_page('error', 'Access Denied', sprintf(
+            'Outcome ID %d could not be verified for section ID %d (%s): %s',
+            (int)$selectedSloId,
+            $selectedSectionPk,
+            $selectedSectionLabel,
+            $e->getMessage()
+        ));
         exit;
     }
 }
@@ -1245,6 +1310,13 @@ $theme->showHeader($context);
             </div>
         <?php endif; ?>
 
+        <?php if (empty($slos)): ?>
+        <div class="alert alert-warning mt-3" role="alert">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            No Student Learning Outcomes are defined for <?= htmlspecialchars($selectedSectionLabel) ?>
+            (course ID <?= (int)$selectedCourseFk ?>). Add SLOs for this course before assessing it.
+        </div>
+        <?php else: ?>
         <!-- SLO Selection Buttons -->
         <div class="card card-primary card-outline mb-3">
             <div class="card-header">
@@ -1279,12 +1351,13 @@ $theme->showHeader($context);
                 </nav>
             </div>
         </div>
+        <?php endif; ?>
 
         <?php if ($selectedSectionPk && $selectedSloId > 0): ?>
         <?php if (empty($students)): ?>
         <div class="alert alert-info mt-3" role="alert">
             <i class="fas fa-info-circle" aria-hidden="true"></i>
-            No students are currently enrolled in this course section.
+            No students are enrolled in <?= htmlspecialchars($selectedSectionLabel) ?>. The enrollment table has no rows for this section, so there is no one to assess; check that the enrollment import for this term has been run.
         </div>
         <?php else: ?>
         <!-- Assessment Entry Form -->

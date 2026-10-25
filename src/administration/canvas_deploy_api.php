@@ -44,16 +44,16 @@ $sisInspector = static function (?string $sisId) use ($db, $dbPrefix, $offeringF
         return ['No SIS ID, so SLO Cloud cannot match this course to a section.'];
     }
     $offering = LtiLaunchContext::parseOffering($offeringFormat, $sisId);
-    if ($offering['crn'] === null || $offering['term'] === null) {
+    if ($offering['crn'] === null) {
         return ['SIS ID "' . $sisId . '" does not fit the offering format ' . $offeringFormat . ', so launches will show no class.'];
     }
     try {
-        LtiLaunchContext::resolve($db, $dbPrefix, ['lti_term_id' => $offering['term'], 'lti_crn' => $offering['crn']]);
+        LtiLaunchContext::resolve($db, $dbPrefix, ['lti_term_id' => (string)$offering['term'], 'lti_crn' => $offering['crn']]);
         return [];
     } catch (LtiAuthorizationException) {
         return stripos($offering['crn'], 'XLS') === 0
             ? ['Cross-listed group for SIS ID "' . $sisId . '" is not in SLO Cloud, so launches will fail.']
-            : ['Section ' . $offering['crn'] . ' in term ' . $offering['term'] . ' is not imported yet; it is created on first launch.'];
+            : ['Section ' . $offering['crn'] . ($offering['term'] !== null ? ' in term ' . $offering['term'] : '') . ' is not imported yet' . ($offering['term'] !== null ? '; it is created on first launch.' : '.')];
     } catch (\Throwable) {
         return ['Could not check this section in SLO Cloud.'];
     }

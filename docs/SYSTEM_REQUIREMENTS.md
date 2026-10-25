@@ -5,7 +5,7 @@ App version: 5.2.2
 SLOCloud is a plain PHP web application.
 
 - No framework.
-- No Composer or third-party PHP packages.
+- No Composer. The one third-party PHP library set, for SAML single sign-on (onelogin/php-saml and xmlseclibs), is bundled unmodified in `src\system\lib` and loaded by a small autoloader. Nothing is downloaded at install or run time. See `src\system\lib\README.md`.
 - No Node.js or build step.
 - Browser libraries (Bootstrap, jQuery, DataTables, AdminLTE, Font Awesome) are bundled in `web\assets\vendor`. No CDN access required.
 - Deployment: the contents of `src\` become the web root.
@@ -230,6 +230,7 @@ D:\SLO Cloud 5\
         var\sessions\
         var\reports\          custom report definitions, catalog
         var\loginlimits\
+        var\saml\             pending single sign-on requests (short-lived)
         var\ltilimits\
         var\canvas_deploy\
         var\key_rotation.lock
@@ -283,7 +284,7 @@ Outbound:
 | Download hosts in `automation/sources.json`, Git host | 443/TCP | Installer only | During install, unless installing offline |
 
 - LTI launch is a browser POST. The web node must be reachable from any network where users access Canvas.
-- SAML: browser redirect only. No server-to-server traffic.
+- SAML: browser redirect only. No server-to-server traffic. Setup guide for Microsoft Entra ID: [ENTRA_SSO_SETUP.md](ENTRA_SSO_SETUP.md).
 - SMTP: not used.
 
 ### 1.12 Operations

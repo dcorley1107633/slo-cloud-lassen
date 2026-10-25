@@ -2,23 +2,20 @@
 /**
  * SAML 2.0 Assertion Consumer Service (ACS)
  *
- * Receives the IdP's HTTP-POST response, validates the signed assertion,
- * and logs the user in if their email exists in the SLOCloud database.
+ * Receives the IdP's HTTP-POST response, validates it (see Core\Saml), and
+ * signs the user in if their email exists in the SLOCloud database and the
+ * account is active. An account is created from an assertion only when
+ * saml.auto_provision is on and the email is at one of
+ * saml.auto_provision_domains; it is active, has no admin role, and gets a
+ * random password nobody knows. An existing account is never changed or
+ * reactivated.
  *
  * This endpoint must be registered with your IdP as the ACS URL
  * (should match saml.sp_acs_url in config.yaml).
  *
- * TODO: Auto-provisioning
- *   When a valid SAML assertion arrives for an email not in the database,
- *   samlUserNotFound() is called and login is denied. Add an optional
- *   saml.auto_provision config flag that creates the user record on first
- *   SSO login (role: user, is_active: 1) using assertion attributes.
- *
- * TODO: Encrypted assertions
- *   Saml::parseResponse() only handles signed assertions. Some IdPs
- *   (e.g. Azure AD in strict mode) send EncryptedAssertion elements.
- *   Add decryption support using the SP private key configured via
- *   saml.sp_private_key in config.yaml.
+ * A response is accepted only if it answers a sign-in that sso.php started
+ * (the request ID is recorded there and works once). A response the IdP sends
+ * on its own, a replayed response and an expired one are refused.
  */
 
 declare(strict_types=1);
@@ -36,46 +33,85 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+$samlConfig = Saml::configFrom($config);
+
 // SAML must be enabled
-$samlEnabled = filter_var($config->get('saml.enabled') ?? false, FILTER_VALIDATE_BOOLEAN);
-if (!$samlEnabled) {
+if (!$samlConfig['enabled']) {
     http_response_code(403);
     exit;
 }
 
 // Already logged in - redirect
 if (isset($_SESSION['user_id'])) {
-    header('Location: ' . BASE_URL . 'administration/');
-    exit;
+    samlContinue(BASE_URL . 'administration/');
 }
 
-$samlConfig = [
-    'idp_entity_id' => (string) ($config->get('saml.idp_entity_id') ?? ''),
-    'idp_cert'      => (string) ($config->get('saml.idp_cert')      ?? ''),
-    'sp_entity_id'  => (string) ($config->get('saml.sp_entity_id')  ?? ''),
-    'sp_acs_url'    => (string) ($config->get('saml.sp_acs_url')    ?? ''),
-    'attr_email'    => (string) ($config->get('saml.attr_email')    ?? 'email'),
-    'attr_name'     => (string) ($config->get('saml.attr_name')     ?? 'displayName'),
-];
+$problems = Saml::problems($samlConfig);
+if ($problems !== []) {
+    Logger::getInstance()->error('SAML response received but configuration is not usable: ' . implode(' ', $problems));
+    Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on failed: its settings are incomplete',
+        null, null, 'error', false, ['reason' => 'saml_not_configured', 'method' => 'saml']);
+    samlError('SSO login is not fully configured. Please contact your administrator.');
+}
 
 $samlResponseRaw = $_POST['SAMLResponse'] ?? '';
-if ($samlResponseRaw === '') {
+if (!is_string($samlResponseRaw) || $samlResponseRaw === '') {
     samlError('No SAMLResponse received from Identity Provider.', 400);
 }
 
-// Parse and validate the SAML assertion
+// The response must answer a sign-in this application started, once.
+$requestId = Saml::inResponseTo($samlResponseRaw, false);
+if (!Saml::takeRequest('login', $requestId, Saml::pendingDirectory())) {
+    Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on failed: the response did not answer a sign-in started here',
+        null, null, 'warning', false, ['reason' => 'saml_unsolicited_response', 'method' => 'saml']);
+    if ($requestId === '') {
+        // No InResponseTo: the identity provider started this sign-in itself,
+        // for example the Test button in Microsoft Entra ID or a portal tile.
+        samlError(
+            'You have arrived here unsolicited. The identity provider signed you in, but SLO Cloud did not ask it to, '
+            . 'and SLO Cloud only accepts a sign-in that it started. If you clicked Test in Microsoft Entra ID (or opened SLO Cloud '
+            . 'from a portal tile that starts at the provider), this is expected. Test from within the app instead: '
+            . 'go to the SLO Cloud login page and choose the single sign-on button.',
+            200,
+            [],
+            'Sign-in Not Started Here'
+        );
+    }
+    samlError(
+        'This sign-in has already been used, has expired (a sign-in stays valid for 10 minutes), or was not started by this SLO Cloud. '
+        . 'Go to the SLO Cloud login page and start again.',
+        200,
+        [],
+        'Sign-in Expired'
+    );
+}
+
+// Validate the signed response
 $userEmail = '';
 $userName  = '';
+$identity  = [];
 try {
-    $attributes = Saml::parseResponse($samlResponseRaw, $samlConfig);
-    $userEmail  = $attributes['email'];
-    $userName   = $attributes['name'];
-} catch (Exception $e) {
+    $identity  = Saml::validateResponse($samlConfig, $requestId);
+    $userEmail = $identity['email'];
+    $userName  = $identity['name'];
+} catch (Throwable $e) {
+    $reason = $e instanceof \SLOCloud\Core\SamlSignInError ? $e->reason : 'saml_invalid_response';
+    // The technical reason can quote values from the message, so it goes to the log file.
+    Logger::getInstance()->warning('SAML response rejected: ' . substr($e->getMessage(), 0, 500), [
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+    ]);
     Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on failed: the identity provider response could not be validated',
-        null, null, 'warning', false, ['reason' => 'saml_invalid_response', 'method' => 'saml']);
+        null, null, 'warning', false, ['reason' => $reason, 'method' => 'saml']);
 
-    // Do not expose internal validation details to the browser
-    samlError('SSO login failed: the Identity Provider response could not be validated. Please contact your administrator.');
+    // Say what is wrong and what to change; the values shown are escaped and hold no secrets.
+    samlError(
+        $e instanceof \SLOCloud\Core\SamlSignInError
+            ? $e->explanation
+            : 'The response from the identity provider could not be validated. Please contact your administrator.',
+        200,
+        $e instanceof \SLOCloud\Core\SamlSignInError ? $e->details : [],
+        'Sign-in Could Not Be Validated'
+    );
 }
 
 // Look up the user in the database
@@ -94,6 +130,35 @@ try {
         'ip'    => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
     ]);
     samlError('A database error occurred during SSO login. Please contact your administrator.');
+}
+
+// Not in the database: create a non-admin account if allowed
+if (!$user && Saml::mayProvision($samlConfig, $userEmail)) {
+    try {
+        $now = $db->now();
+        $db->query(
+            "INSERT INTO {$dbPrefix}users (full_name, email, password_hash, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, 1, {$now}, {$now})",
+            [
+                $userName !== '' ? $userName : $userEmail,
+                $userEmail,
+                // Nobody knows this password, so only single sign-on can open the account.
+                password_hash(bin2hex(random_bytes(32)), PASSWORD_ARGON2ID, ['memory_cost' => 65536, 'time_cost' => 4]),
+            ],
+            'sss'
+        );
+        $result = $db->query(
+            "SELECT users_pk, full_name, email, is_active FROM {$dbPrefix}users WHERE email = ?",
+            [$userEmail],
+            's'
+        );
+        $user = fetch_row($result);
+        Logger::getInstance()->security(Logger::EVENT_ADMIN_ACTION, 'Account created by single sign-on',
+            $user ? (int)$user['users_pk'] : null, $userEmail, 'info', false, ['reason' => 'saml_auto_provisioned', 'method' => 'saml']);
+    } catch (Exception $e) {
+        Logger::getInstance()->warning('SAML auto-provision error: ' . $e->getMessage(), ['email' => $userEmail]);
+        samlError('Your account could not be created. Please contact your administrator.');
+    }
 }
 
 // User not in the database
@@ -119,37 +184,72 @@ $_SESSION['user_name']    = $user['full_name'];
 $_SESSION['logged_in_at'] = time();
 $_SESSION['last_activity']= time();
 $_SESSION['saml_login']   = true;
+// Kept so logging out can sign the user out at the identity provider too.
+$_SESSION['saml_name_id']        = $identity['name_id'];
+$_SESSION['saml_name_id_format'] = $identity['name_id_format'];
+$_SESSION['saml_session_index']  = $identity['session_index'];
 
 Logger::getInstance()->security(Logger::EVENT_LOGIN_SUCCESS, 'Signed in with single sign-on',
     (int)$user['users_pk'], $userEmail, 'info', false, ['method' => 'saml']);
 
-// Honour RelayState if the IdP echoed one back (must be a relative path for security);
-// otherwise return to the page that required signing in again, or the dashboard.
-$loginReturn = \SLOCloud\Core\Authorization::takeLoginReturn();
-$relayState = $_POST['RelayState'] ?? '';
-if ($relayState !== '' && str_starts_with($relayState, '/') && !str_starts_with($relayState, '//')) {
-    header('Location: ' . $relayState);
-} else {
-    header('Location: ' . $loginReturn);
+// RelayState is not used: the IdP echoes it, so it is not trusted. Return to the
+// page that required signing in again (kept in the session), or the dashboard.
+samlContinue(\SLOCloud\Core\Authorization::takeLoginReturn());
+
+// ---------------------------------------------------------------------------
+// Helper: continue to a page of this site.
+//
+// The IdP reached this endpoint with a cross-site POST, and the session cookie
+// is SameSite=Strict, so a redirect from here would be treated as cross-site
+// and the browser would not send the new session cookie: the user would land on
+// the login page. A page that refreshes itself is a same-site navigation.
+// ---------------------------------------------------------------------------
+function samlContinue(string $url): never
+{
+    $urlEsc = htmlspecialchars($url, ENT_QUOTES);
+    header('Content-Type: text/html; charset=UTF-8');
+    header('Cache-Control: no-store');
+    echo <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="0;url={$urlEsc}">
+    <title>Signing in</title>
+</head>
+<body>
+    <main>
+        <h1>Signing in</h1>
+        <p>Signing you in. If nothing happens, <a href="{$urlEsc}">continue</a>.</p>
+    </main>
+</body>
+</html>
+HTML;
+    exit;
 }
-exit;
 
 // ---------------------------------------------------------------------------
 // Helper: render an error page and halt
 // ---------------------------------------------------------------------------
-function samlError(string $message, int $httpCode = 200): never
+function samlError(string $message, int $httpCode = 200, array $details = [], string $heading = 'SSO Error'): never
 {
     http_response_code($httpCode);
     $loginUrl  = BASE_URL . 'login.php';
     $siteName  = defined('SITE_NAME') ? htmlspecialchars(SITE_NAME) : 'SLOCloud';
-    $msgEsc    = htmlspecialchars($message);
-    echo samlPageHtml(
-        $siteName,
-        'SSO Error',
-        'bi-shield-exclamation text-danger',
-        "<p class=\"text-muted mb-4\">{$msgEsc}</p>",
-        $loginUrl
-    );
+    $body = '<p class="text-muted mb-4">' . htmlspecialchars($message) . '</p>';
+    $rows = '';
+    foreach ($details as $label => $value) {
+        if ((string)$value === '') {
+            continue;
+        }
+        $rows .= '<dt class="fw-semibold">' . htmlspecialchars((string)$label) . '</dt>'
+            . '<dd class="mb-2 text-break"><code>' . htmlspecialchars((string)$value) . '</code></dd>';
+    }
+    if ($rows !== '') {
+        $body .= '<dl class="text-start small mb-4">' . $rows . '</dl>';
+    }
+    echo samlPageHtml($siteName, htmlspecialchars($heading), 'bi-shield-exclamation text-danger', $body, $loginUrl);
     exit;
 }
 
@@ -191,6 +291,8 @@ function samlPageHtml(
     string $bodyHtml,
     string $loginUrl
 ): string {
+    $baseUrl = htmlspecialchars(BASE_URL, ENT_QUOTES);
+    $loginUrl = htmlspecialchars($loginUrl, ENT_QUOTES);
     return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -198,8 +300,8 @@ function samlPageHtml(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{$heading} - {$siteName}</title>
-    <link href="<?= BASE_URL ?>assets/vendor/bootstrap/5.3.8/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="<?= BASE_URL ?>assets/vendor/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+    <link href="{$baseUrl}assets/vendor/bootstrap/5.3.8/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{$baseUrl}assets/vendor/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
     <style>
         body {
             background: linear-gradient(135deg, #0D47A1 0%, #1976D2 100%);
@@ -234,26 +336,26 @@ function samlPageHtml(
     </style>
 </head>
 <body>
-<div class="px-3">
+<main class="px-3">
     <div class="card-box mx-auto">
         <div class="card-header-bar">
-            <i class="bi bi-graph-up" style="font-size:3rem;"></i>
+            <i class="bi bi-graph-up" style="font-size:3rem;" aria-hidden="true"></i>
             <h2 class="mb-0 mt-1">{$siteName}</h2>
         </div>
         <div class="card-body-area">
-            <i class="bi {$iconClass}" style="font-size:3rem;"></i>
+            <i class="bi {$iconClass}" style="font-size:3rem;" aria-hidden="true"></i>
             <h4 class="mt-3 mb-3">{$heading}</h4>
             {$bodyHtml}
             <a href="{$loginUrl}" class="btn btn-primary px-4">
-                <i class="bi bi-arrow-left me-2"></i>Back to Login
+                <i class="bi bi-arrow-left me-2" aria-hidden="true"></i>Back to Login
             </a>
         </div>
         <div class="card-footer-bar">
-            <i class="bi bi-shield-check me-1"></i>Secure encrypted authentication
+            <i class="bi bi-shield-check me-1" aria-hidden="true"></i>Secure encrypted authentication
         </div>
     </div>
-</div>
-<script src="<?= BASE_URL ?>assets/vendor/bootstrap/5.3.8/js/bootstrap.bundle.min.js"></script>
+</main>
+<script src="{$baseUrl}assets/vendor/bootstrap/5.3.8/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 HTML;

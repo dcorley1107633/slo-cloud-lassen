@@ -83,7 +83,8 @@ cookie isn't how they authenticate a request in the first place:
   signed OAuth 1.0 launch (a forged request can't reproduce a valid signature
   without the shared secret).
 - `saml/acs.php` and related SAML routes authenticate via the IdP-signed
-  assertion.
+  assertion, which must also answer a sign-in this application started (see
+  AUTH.md, SAML 2.0 Single Sign-On).
 - `api/api.php` authenticates via `X-Api-Key` or an existing admin session
   (which itself remains CSRF-checked for any state-changing call).
 

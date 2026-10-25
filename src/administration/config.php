@@ -22,6 +22,7 @@ $lookupKeyConfigured = (string)$config->get('security.student_lookup_key', '') !
 
 // Where key.yaml is now, and what pointed the application there.
 require_once __DIR__ . '/../system/Core/KeyFolder.php';
+require_once __DIR__ . '/../system/Core/Saml.php';
 $keyEnvironmentPath = (string)(getenv('SLOCloud_KEY_PATH') ?: '');
 $activeKeyFile = \SLOCloud\Core\KeyFolder::activeKeyFile($config->keyPathCandidates());
 $keySource = \SLOCloud\Core\KeyFolder::keySource($activeKeyFile, $keyEnvironmentPath, (string)$config->getRaw('security.key_path', ''));
@@ -87,6 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Single sign-on is offered on the login page as soon as it is enabled,
+        // so it is not enabled until its settings can work.
+        $samlSettings = \SLOCloud\Core\Saml::configFrom($config);
+        if ($samlSettings['enabled'] && ($samlProblems = \SLOCloud\Core\Saml::problems($samlSettings)) !== []) {
+            throw new \Exception('Single sign-on cannot be enabled yet, so nothing was saved. ' . implode(' ', $samlProblems));
+        }
+
         // Save configuration
         $config->save();
         
@@ -126,6 +134,7 @@ $sectionConfig = [
     'email' => ['icon' => 'fas fa-envelope', 'title' => 'Email Settings'],
     'reports' => ['icon' => 'fas fa-table', 'title' => 'Custom Report Settings'],
     'canvas' => ['icon' => 'fas fa-cloud-arrow-up', 'title' => 'Canvas Deployment Settings'],
+    'saml' => ['icon' => 'fas fa-right-to-bracket', 'title' => 'Single Sign-On (SAML) Settings'],
 ];
 
 // Load theme system (auto-loads ThemeContext and Theme)
@@ -194,6 +203,31 @@ $theme->showHeader($context);
 
                 <?php endforeach; ?>
             </div>
+            <?php if ($sectionName === 'saml'): ?>
+            <?php
+            $samlValues = \SLOCloud\Core\Saml::configFrom($config);
+            $samlShown = [
+                'Identifier (Entity ID)' => $samlValues['sp_entity_id'],
+                'Reply URL (Assertion Consumer Service URL)' => $samlValues['sp_acs_url'],
+                'Sign-on URL' => \SLOCloud\Core\Saml::derivedUrls($samlValues['site_url'], (string)$config->get('app.base_url', '/'))['sso_url'],
+                'Logout URL (optional)' => $samlValues['sp_slo_url'],
+                'SP metadata' => \SLOCloud\Core\Saml::derivedUrls($samlValues['site_url'], (string)$config->get('app.base_url', '/'))['metadata_url'],
+            ];
+            ?>
+            <h3 class="h5 mt-3">Values to enter at the identity provider</h3>
+            <?php if ($samlValues['sp_acs_url'] === ''): ?>
+            <p class="text-muted mb-0">Enter the Site Address and save to see the addresses to give your identity provider.</p>
+            <?php else: ?>
+            <p class="text-muted">Built from the saved settings. In Microsoft Entra ID these go in Basic SAML Configuration; see docs/ENTRA_SSO_SETUP.md.</p>
+            <dl class="mb-0">
+                <?php foreach ($samlShown as $samlLabel => $samlValue): ?>
+                <?php if ($samlValue === '') continue; ?>
+                <dt><?= htmlspecialchars($samlLabel) ?></dt>
+                <dd><code class="user-select-all"><?= htmlspecialchars($samlValue) ?></code></dd>
+                <?php endforeach; ?>
+            </dl>
+            <?php endif; ?>
+            <?php endif; ?>
         </div>
     </div>
     <?php endforeach; ?>

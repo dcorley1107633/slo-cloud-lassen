@@ -203,7 +203,7 @@ Every change goes through the journal first (section 12). A step whose resource 
 4. **Windows features**: installs only the missing IIS role services and records exactly which were new.
 5. **Shared packages**: Visual C++ runtime, URL Rewrite and the ODBC driver, each only if missing.
 6. **Folders**: `root`, `web`, `secrets`, `backup`, `data` (`logs`, `tmp`, `var`).
-7. **Source**: Git clone or fetch, then a forced detached checkout of the resolved commit. Any local edits or untracked files in `repo` are discarded (and listed as a warning in the log and journal), the result is verified to match the commit exactly, and `core.autocrlf=false` is set in the repo so manual Git commands there can't rewrite line endings. Or a mirror of `-LocalSourcePath`.
+7. **Source**: Git clone or fetch, then a forced checkout of the resolved commit (a local branch tracking origin when `-Ref` is a branch, so `git pull` works; detached for a tag or commit). Any local edits or untracked files in `repo` are discarded (and listed as a warning in the log and journal), the result is verified to match the commit exactly, and `core.autocrlf=false` is set in the repo so manual Git commands there can't rewrite line endings. Or a mirror of `-LocalSourcePath`.
 8. **PHP**: downloads and verifies PHP, `pdo_sqlsrv`, `yaml` and the CA bundle, then stages them and moves them into place. On an upgrade, the previous PHP is kept as a backup.
 9. **`php.ini`**: `php.ini-production` plus a clearly marked managed block. Then a CLI check of the modules and Argon2id.
 10. **Machine environment** and the PATH entry.
@@ -410,7 +410,7 @@ The installer prints these at the end and saves them in `install-manifest.json` 
 | Symptom | Cause and fix |
 |---|---|
 | Preflight BLOCK: site or app pool name exists | Not created by this installer. Choose `-SiteName` / `-AppPoolName`, or remove it yourself |
-| Preflight BLOCK: HTTP.sys `localhost:443` binding exists | Another product owns it. Resolve with IT; the installer won't take it over |
+| Preflight WARN: HTTP.sys `localhost:443` binding exists | Another product (or an earlier install) owns it. The installer keeps it and uses its certificate; it creates no self-signed certificate and changes nothing |
 | Preflight BLOCK: port 443 held by another process | A non-IIS web server is listening. Stop or reconfigure it |
 | Preflight BLOCK: a site serves the install root | Choose a different root; otherwise `repo` and `secrets` would be exposed |
 | `Ref '…' was not found` | Use an existing branch, tag or commit. There is no `main` branch |

@@ -2,22 +2,13 @@
 /**
  * SAML 2.0 SSO Initiator
  *
- * Builds an unsigned AuthnRequest and redirects the browser to the IdP
- * using the HTTP-Redirect binding.
+ * Builds an AuthnRequest (signed when saml.sign_requests is on), records its
+ * ID so one answer to it is accepted, and redirects the browser to the
+ * identity provider using the HTTP-Redirect binding.
  *
  * Entry point: linked from login.php when saml.enabled = true in config.yaml.
- *
- * TODO: SP Metadata endpoint
- *   Add saml/metadata.php that returns a standard SAML 2.0 SP metadata XML
- *   document. Most IdPs require this URL during registration instead of manual
- *   ACS/entity-ID entry. Should expose: entity ID, ACS URL, NameID format,
- *   and the SP signing certificate (if request signing is added).
- *
- * TODO: SAML Single Logout (SLO)
- *   Add saml/slo.php to handle IdP-initiated and SP-initiated logout.
- *   Currently, logging out of SLOCloud does not terminate the IdP session,
- *   so users can re-authenticate silently without re-entering credentials.
- *   Requires: LogoutRequest/LogoutResponse handling, saml.idp_slo_url in config.
+ * Point the identity provider's "sign-on URL" at this page so an app tile in
+ * the user's portal also starts here (sign-in is SP-initiated only).
  */
 
 declare(strict_types=1);
@@ -34,38 +25,36 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
+$samlConfig = Saml::configFrom($config);
+
 // SAML must be enabled
-$samlEnabled = filter_var($config->get('saml.enabled') ?? false, FILTER_VALIDATE_BOOLEAN);
-if (!$samlEnabled) {
+if (!$samlConfig['enabled']) {
     $_SESSION['flash_error'] = 'SAML SSO is not enabled.';
     header('Location: ' . BASE_URL . 'login.php');
     exit;
 }
 
-$samlConfig = [
-    'idp_sso_url'  => (string) ($config->get('saml.idp_sso_url')  ?? ''),
-    'sp_entity_id' => (string) ($config->get('saml.sp_entity_id') ?? ''),
-    'sp_acs_url'   => (string) ($config->get('saml.sp_acs_url')   ?? ''),
-];
-
-if ($samlConfig['idp_sso_url'] === '' || $samlConfig['sp_entity_id'] === '' || $samlConfig['sp_acs_url'] === '') {
-    Logger::getInstance()->error('SAML SSO initiated but configuration is incomplete');
+$problems = Saml::problems($samlConfig);
+if ($problems !== []) {
+    Logger::getInstance()->error('SAML SSO initiated but configuration is not usable: ' . implode(' ', $problems));
     $_SESSION['flash_error'] = 'SAML SSO is not fully configured. Please contact your administrator.';
     header('Location: ' . BASE_URL . 'login.php');
     exit;
 }
 
 try {
-    $redirectUrl = Saml::buildAuthnRequestUrl($samlConfig);
+    $request = Saml::beginLogin($samlConfig);
+    Saml::rememberRequest('login', $request['request_id'], Saml::pendingDirectory());
 
     Logger::getInstance()->info('SAML AuthnRequest initiated', [
         'ip'          => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
         'idp_sso_url' => $samlConfig['idp_sso_url'],
     ]);
 
-    header('Location: ' . $redirectUrl);
+    header('Cache-Control: no-store');
+    header('Location: ' . $request['url']);
     exit;
-} catch (Exception $e) {
+} catch (Throwable $e) {
     Logger::getInstance()->error('SAML AuthnRequest build failed: ' . $e->getMessage());
     $_SESSION['flash_error'] = 'Could not initiate SSO. Please try again or use password login.';
     header('Location: ' . BASE_URL . 'login.php');

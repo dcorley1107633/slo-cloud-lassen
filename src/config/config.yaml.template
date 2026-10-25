@@ -536,77 +536,108 @@ canvas:
   default_scope_value:
 
 # SAML 2.0 Single Sign-On
-# Enables federated login via an external Identity Provider (IdP) such as Azure AD,
-# Okta, Google Workspace, Shibboleth, or ADFS.
-# Users must already exist in the SLOCloud database to log in via SSO.
-# Unsigned AuthnRequests (SP -> IdP). The IdP MUST sign its Responses or Assertions.
+# Lets users sign in to the dashboard through an external Identity Provider (IdP)
+# such as Microsoft Entra ID (Azure AD), Okta, Google Workspace, Shibboleth or ADFS.
+# Step-by-step Microsoft Entra ID setup: docs/ENTRA_SSO_SETUP.md
+#
+# Users must already exist in the SLOCloud database (matched on email) and be active,
+# unless auto_provision is on, which creates non-admin accounts for listed email domains.
+#
+# Sign-in always starts at SLOCloud (the "Login with ..." button or saml/sso.php).
+# A response the IdP sends on its own, a replayed response and an expired one are refused.
+# The IdP must sign the Assertion (or the whole Response) with SHA-256 or stronger;
+# SHA-1 is refused.
+#
+# Give the IdP administrator the SP metadata at <site>/saml/metadata.php instead of
+# typing the Entity ID and ACS URL by hand.
 saml:
   # @label: Enable SAML SSO
   # @description: Enable Single Sign-On via SAML 2.0
   # @required: false
   # @type: boolean
   # @default: false
-  # @help: When enabled, a "Login with SSO" button appears on the login page.
+  # @help: When enabled, a "Login with SSO" button appears on the login page. Turn on only after the settings below are complete and tested.
   enabled: false
+
+  # @label: Site Address
+  # @description: The address people use to reach SLO Cloud, without a folder
+  # @required: false
+  # @type: string
+  # @help: For example https://slo.example.edu (https only; no folder, that comes from Base URL Path). SLO Cloud builds its Entity ID, Reply (ACS) URL, Sign-on URL and Logout URL from it and shows them below the settings, ready to enter at the identity provider. It must be the same host name your users type in the browser.
+  site_url: ""
 
   # @label: IdP Entity ID
   # @description: Entity ID (Issuer) of your Identity Provider
   # @required: false
   # @type: string
-  # @help: Found in the IdP metadata XML as entityID. Example: https://sts.windows.net/tenant-id/ (Azure AD), https://your-org.okta.com (Okta)
+  # @help: Must match the Issuer the IdP puts in its responses, exactly. Found in the IdP metadata as entityID. Microsoft Entra ID: the "Microsoft Entra Identifier" value, https://sts.windows.net/{tenant-id}/. Okta: https://your-org.okta.com
   idp_entity_id: ""
 
   # @label: IdP SSO URL
   # @description: IdP endpoint that receives SAML AuthnRequests (HTTP-Redirect binding)
   # @required: false
   # @type: string
-  # @help: Found in the IdP metadata as SingleSignOnService with Binding=HTTP-Redirect. Example: https://login.microsoftonline.com/{tenant}/saml2
+  # @help: Must be https. Found in the IdP metadata as SingleSignOnService with Binding=HTTP-Redirect. Microsoft Entra ID: the "Login URL", https://login.microsoftonline.com/{tenant-id}/saml2
   idp_sso_url: ""
 
   # @label: IdP SLO URL
   # @description: IdP endpoint for Single Log-Out (optional)
   # @required: false
   # @type: string
-  # @help: Leave blank to skip SLO. Found in IdP metadata as SingleLogoutService.
+  # @help: Leave blank to sign out of SLOCloud only. Single logout needs this and the SP Single Logout URL. Microsoft Entra ID: the "Logout URL", https://login.microsoftonline.com/{tenant-id}/saml2
   idp_slo_url: ""
 
   # @label: IdP Signing Certificate
   # @description: Public X.509 certificate used by the IdP to sign SAML Responses/Assertions
   # @required: false
   # @type: textarea
-  # @help: Paste the base64-encoded certificate value only (no -----BEGIN/END CERTIFICATE----- headers). Found in IdP metadata inside <ds:X509Certificate>. Required when saml.enabled is true.
+  # @help: Paste the base64-encoded certificate (the BEGIN/END CERTIFICATE lines are optional). Microsoft Entra ID: open the downloaded "Certificate (Base64)" file in a text editor. Required when SAML is enabled.
   idp_cert: ""
+
+  # @label: IdP Signing Certificate (rollover)
+  # @description: Second IdP signing certificate, accepted alongside the first (optional)
+  # @required: false
+  # @type: textarea
+  # @help: Identity providers replace their signing certificate from time to time. Paste the new certificate here before the switch so sign-in does not stop, then move it to the field above and clear this one afterwards.
+  idp_cert_2: ""
 
   # @label: IdP Display Name
   # @description: Name shown on the SSO login button
   # @required: false
   # @type: string
   # @default: Single Sign-On
-  # @help: Shown as "Login with {idp_name}" on the login page. Example: "Azure AD", "Okta", "Campus SSO"
+  # @help: Shown as "Login with {idp_name}" on the login page. Example: "Microsoft", "Okta", "Campus SSO"
   idp_name: "Single Sign-On"
 
-  # @label: SP Entity ID
+  # @label: SP Entity ID (override)
   # @description: Unique identifier for this SLOCloud installation as a Service Provider
   # @required: false
   # @type: string
-  # @help: Usually the full URL to your SLOCloud metadata endpoint. Must match what you register with the IdP. Example: https://slo.example.edu/saml/metadata
+  # @help: Leave blank to use the address built from Site Address (https://site/saml/metadata.php). Fill in only if the identity provider already has a different identifier registered for SLO Cloud.
   sp_entity_id: ""
 
-  # @label: SP Assertion Consumer Service URL
+  # @label: SP Assertion Consumer Service URL (override)
   # @description: SLOCloud endpoint that receives the IdP POST response
   # @required: false
   # @type: string
-  # @help: Must match the ACS URL registered with your IdP. Example: https://slo.example.edu/saml/acs.php
+  # @help: Leave blank to use the address built from Site Address (https://site/saml/acs.php). Fill in only if the identity provider needs a different address, for example behind a gateway.
   sp_acs_url: ""
+
+  # @label: SP Single Logout URL (override)
+  # @description: SLOCloud endpoint that receives IdP logout messages (optional)
+  # @required: false
+  # @type: string
+  # @help: Leave blank to use the address built from Site Address (https://site/saml/slo.php). Single logout is on only when IdP SLO URL is set (and this address is known).
+  sp_slo_url: ""
 
   # @label: Email Attribute Name
   # @description: SAML attribute name that contains the user's email address
   # @required: false
   # @type: string
   # @default: email
-  # @help: The SAML attribute your IdP sends for email. Common values:
+  # @help: The SAML attribute your IdP sends for email; it must match the email on the SLOCloud user account. Common values:
   #   email (Okta default)
-  #   http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress (Azure AD / ADFS)
+  #   http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress (Microsoft Entra ID / ADFS)
   #   urn:oid:0.9.2342.19200300.100.1.3 (eduPerson/Shibboleth)
   #   Leave blank to use the NameID value as the email.
   attr_email: "email"
@@ -617,8 +648,70 @@ saml:
   # @type: string
   # @default: displayName
   # @help: The SAML attribute your IdP sends for the user's full name. Common values:
-  #   displayName (Okta, Azure AD)
+  #   displayName (Okta)
+  #   http://schemas.microsoft.com/identity/claims/displayname (Microsoft Entra ID, after adding the claim)
   #   http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name (ADFS)
   #   urn:oid:2.5.4.3 (eduPerson/Shibboleth)
-  #   Leave blank to skip name extraction.
+  #   Leave blank to skip name extraction. The name is not used to sign in.
   attr_name: "displayName"
+
+  # @label: Auto-Provision Accounts
+  # @description: Create an account at first single sign-on for people who do not have one
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: Off by default, so only existing, active users can sign in. When on, a person whose email is at one of the domains below gets an active account with NO admin role (they can read and export everything the dashboard shows but cannot edit). Promote people in Users. Pair it with the IdP setting that limits who can sign in (Microsoft Entra ID: Assignment required = Yes); the domain list is only a second check. Existing accounts are never changed or reactivated.
+  auto_provision: false
+
+  # @label: Auto-Provision Email Domains
+  # @description: Email domains allowed to get an account, comma-separated
+  # @required: false
+  # @type: string
+  # @help: Required when Auto-Provision Accounts is on. Example: example.edu, staff.example.edu. A domain does not include its subdomains.
+  auto_provision_domains: ""
+
+  # @label: Force Re-Authentication
+  # @description: Ask the IdP to make the user sign in again even if they already have an IdP session
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: Off by default so users with an active Microsoft/campus session sign in without a prompt.
+  force_authn: false
+
+  # @label: Require Signed Response
+  # @description: Require the whole Response to be signed, not just the Assertion
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: The Assertion must always be signed. Turn this on if the IdP is set to sign the Response as well (Microsoft Entra ID: "Sign SAML response and assertion").
+  require_signed_response: false
+
+  # @label: Sign Requests
+  # @description: Sign the AuthnRequest and logout messages SLOCloud sends (optional)
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: Needs the SP Certificate and SP Private Key File, and the same certificate uploaded to the IdP to verify them. Most deployments leave this off.
+  sign_requests: false
+
+  # @label: Require Encrypted Assertions
+  # @description: Refuse assertions the IdP did not encrypt (optional)
+  # @required: false
+  # @type: boolean
+  # @default: false
+  # @help: Needs the SP Certificate and SP Private Key File; upload the certificate to the IdP so it can encrypt to it. The connection is already HTTPS, so this is for policies that require encrypted tokens.
+  require_encrypted_assertions: false
+
+  # @label: SP Certificate
+  # @description: Public X.509 certificate for this SLOCloud installation (optional)
+  # @required: false
+  # @type: textarea
+  # @help: Used for signed requests and encrypted assertions, and included in the SP metadata. Generate a pair with: openssl req -x509 -newkey rsa:3072 -sha256 -days 1095 -nodes -keyout sp.key -out sp.crt -subj "/CN=slo.example.edu"
+  sp_cert: ""
+
+  # @label: SP Private Key File
+  # @description: Full path of the private key (PEM) that goes with the SP Certificate (optional)
+  # @required: false
+  # @type: string
+  # @help: Keep the file outside the web root (for example beside key.yaml in the keys folder) and readable only by the web server account. The key is never stored in config.yaml.
+  sp_private_key_file: ""

@@ -1,9 +1,121 @@
 # SLOCloud Patch Notes
 
-## Unreleased
+## v5.2.7 (2026-10-24)
+
+### Single sign-on
+
+- Single sign-on (SAML 2.0) now runs on the maintained `onelogin/php-saml`
+  library (with `xmlseclibs`), bundled unmodified in `system/lib` with no
+  Composer. It replaces the hand-written signature check, which accepted any
+  valid signature in a response while reading the user from the first assertion
+  it found, so a response containing a forged assertion could sign in as
+  another user. The library requires the signature to cover the one assertion
+  it reads.
+- A sign-in response is accepted only if it answers a sign-in that SLO Cloud
+  started, once, within 10 minutes. Replayed responses and responses the
+  identity provider sends on its own (including Entra's **Test** button) are
+  refused. The Activity Log shows these as "did not answer a sign-in started
+  here".
+- Every check that was optional is now required: audience, issuer, destination,
+  recipient, validity period and the signature on the assertion. SHA-1
+  signatures are refused. A second IdP signing certificate can be set so the
+  identity provider can replace its certificate without an outage.
+- Single sign-on errors now say what failed and what to change, with the values
+  to compare, instead of "could not be validated": an unsigned or wrongly signed
+  response (wrong or replaced certificate, SHA-1), a different Entity ID,
+  issuer or Reply URL than configured (both values are shown), a clock that is
+  off, and a response with no usable email (the attributes received are
+  listed). A sign-in that began at the identity provider, such as Entra's Test
+  button, says "You have arrived here unsolicited" and tells you to test from
+  the SLO Cloud login page. The Activity Log records a specific reason for each.
+- Sign-in no longer asks the identity provider for a password-only
+  authentication method, which made Microsoft Entra ID fail for people who sign
+  in with MFA or a passkey.
+- New `saml/metadata.php` gives the identity provider administrator the SP
+  metadata instead of typing the Entity ID and ACS URL by hand.
+- Single logout: signing out of SLO Cloud also signs the user out at the
+  identity provider, and a logout at the identity provider ends the SLO Cloud
+  session (`saml/slo.php`). It is on when **IdP SLO URL** and the new **SP
+  Single Logout URL** are both set. Logout messages from the identity provider
+  must be signed.
+- New **Auto-Provision Accounts** setting (off by default) with **Auto-Provision
+  Email Domains**. When on, a person whose email is at a listed domain and who
+  has no account gets one at first single sign-on: active, no admin role, and a
+  random password nobody knows. Existing and deactivated accounts are never
+  changed. It will not turn on without at least one domain.
+- Optional signed sign-in requests and encrypted assertions, with the SP
+  certificate in Configuration and the private key in a file outside the web
+  root (new settings **SP Certificate**, **SP Private Key File**, **Sign
+  Requests**, **Require Encrypted Assertions**, **Require Signed Response**,
+  **Force Re-Authentication**).
+- New **Site Address** setting (for example `https://slo.example.edu`). SLO Cloud
+  builds its Entity ID, Reply (ACS) URL, Sign-on URL and logout URL from it and
+  Base URL Path, and the Configuration page lists them ready to copy into the
+  identity provider, so they no longer have to be typed and kept in step by
+  hand. They are never built from the request's Host header. **SP Entity ID**,
+  **SP Assertion Consumer Service URL** and **SP Single Logout URL** are now
+  optional overrides; an installation that already has them set keeps working
+  unchanged.
+- Configuration has a **Single Sign-On (SAML) Settings** card with help text for
+  Microsoft Entra ID, and refuses to save with **Enable SAML SSO** on while the
+  settings cannot work, naming the problem.
+- New guide, `docs/ENTRA_SSO_SETUP.md`: step-by-step Microsoft Entra ID setup, starting from Site Address and the values the page shows,
+  testing, troubleshooting and certificate rollover.
+
+### Fixes
+
+- The SSO error pages now have a main landmark and hide their decorative
+  icons from screen readers, and the "Signing in" page has a heading.
+- The SSO error pages loaded no styles or scripts because their asset links were
+  never filled in.
+- After a successful single sign-on the browser could land on the login page
+  again, because the redirect from the identity provider's cross-site POST did
+  not carry the new session cookie. The sign-in now continues through a page
+  that refreshes itself.
+- A `RelayState` starting with `/\` could redirect off site. It is no longer
+  used.
+
+### Upgrading
+
+- No database changes; the schema version stays 5.2.1, so there is no
+  migration to run. Replace the application files, including the new
+  `system/lib` folder and `web.config`. The new `saml` settings are added to
+  `config.yaml` automatically, all off or blank.
+- If single sign-on is already in use, check it after the update (see
+  `docs/ENTRA_SSO_SETUP.md`): the identity provider must now sign the
+  assertion with SHA-256, a sign-in must start at SLO Cloud (the identity
+  provider's own Test button and portal tiles that start at the provider are
+  refused), and IdP Entity ID, SP Entity ID and the Reply URL must match
+  exactly. Password login is unchanged.
+- Give the web server account Modify access to `<data>\var` (it creates
+  `var\saml`), if it did not already have it.
+
+## v5.2.6 (2026-10-23)
+
+### LTI
+
+- LTI error pages now say what went wrong and show the values received,
+  instead of a generic "Course Not Available" or "Access Denied". They name
+  the failing case (no section matches the CRN and term, no Student Learning
+  Outcomes defined for the course, no students enrolled in the section, a
+  missing, malformed, expired or unknown launch token, or an invalid
+  `section_id` or `slo_id` in the URL) and echo the CRN, term, course and
+  parameters involved. Failed saves return the reason instead of "Access
+  denied."
+- A launch no longer needs a term. When `lti.offering_format` has no
+  `{TERM}` token, the section is matched on CRN alone. If that CRN exists in
+  more than one term, the launch stops and the error names the terms and says
+  to add `{TERM}` to the format. A section is not auto-created from such a
+  launch, because creating one needs a term, so it must already be imported.
+- The course label no longer carries the CRN twice. The test launch on the
+  LTI page sends `COURSE-CRN` instead of `COURSE-CRN (section)`, and a
+  section created automatically by a launch gets section ID `01` instead of
+  whatever was in the label's parentheses. Existing sections are unchanged.
 
 ### Administration
 
+- System Status shows the PHP version next to the application version, and
+  the status API returns it as `php_version`.
 - Each file on Term Imports (Normalized) has an info button (ⓘ) next to its
   name that shows what importing that file does, before you import it: which
   records it adds, which it updates and how it matches them, which it skips,
@@ -25,6 +137,11 @@
   the fact replaces the "Auto-created: …" placeholder names and term dates,
   and skipped rows are saved by importing the missing file and then the
   skipped file again.
+
+### Upgrading
+
+- No database changes; the schema version stays 5.2.1, so there is no
+  migration to run. Replace the application files.
 
 ## v5.2.5 (2026-10-20)
 

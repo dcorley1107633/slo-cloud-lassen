@@ -94,10 +94,9 @@ if ($crn && $termId && $courseNumber && stripos($crn, 'XLS') !== 0) {
             [$crn, $termId], 'ss'
         )->fetch();
         if (!$row) {
-            preg_match('/\(([^)]+)\)/', $_POST[$courseLabelField] ?? '', $m);
             $instructor = $isInstructor ? trim("$firstName $lastName") : null;
             $db->query("INSERT INTO {$dbPrefix}sections (course_fk, term_fk, section_id, crn, instructor_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, $now, $now)",
-                [$courseFk, $termFk, $m[1] ?? '01', $crn, $instructor], 'iisss');
+                [$courseFk, $termFk, '01', $crn, $instructor], 'iisss');
         }
     } catch (\Exception $e) {
         $logger->error('LTI auto-create: ' . $e->getMessage());
@@ -163,7 +162,13 @@ try {
     render_message_page(
         'error',
         'Course Not Available',
-        'This launch could not be matched to an authorized course section. Please contact your LMS administrator.'
+        sprintf(
+            '%s Received: %s = "%s" (format %s), %s = "%s" (format %s); parsed CRN "%s", term "%s", course "%s". Please contact your LMS administrator.',
+            $e->getMessage(),
+            $offeringField, (string)$offeringRaw, $offeringFormat,
+            $courseLabelField, (string)($_POST[$courseLabelField] ?? ''), $courseLabelFormat,
+            (string)$crn, (string)$termId, (string)$courseNumber
+        )
     );
     exit;
 }

@@ -77,6 +77,11 @@ $check(
     'Regular launch was not resolved by the signed term and CRN together.'
 );
 
+$noTermDb = new LtiContextFakeDb([[$sectionRow(41, '12345', 7, 'ENG-101')]]);
+$noTerm = LtiLaunchContext::resolve($noTermDb, 'tbl_', ['lti_term_id' => '', 'lti_crn' => '12345']);
+$check($noTerm['sections'][0]['section_pk'] === 41, 'A launch without a term was not resolved by CRN alone.');
+$check($noTermDb->queries[0]['params'] === ['12345'], 'A launch without a term still bound a term parameter.');
+
 $xlistRows = [
     ['xlist_crn' => '12345'] + $sectionRow(41, '12345', 7, 'ENG-101'),
     ['xlist_crn' => '67890'] + $sectionRow(52, '67890', 8, 'HUM-101'),

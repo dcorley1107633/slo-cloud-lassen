@@ -2,7 +2,7 @@
 
 ## Authentication Strategies
 
-Two concurrent authentication methods:
+Three authentication methods can run side by side (dashboard password, LTI, and optional SAML single sign-on for the dashboard):
 
 ### 1. Dashboard Authentication
 - Local username/password
@@ -48,6 +48,60 @@ lti:
 - Timestamp validation (5-minute window)
 - Constant-time signature comparison
 - Signature validation can be disabled only when `SLOCLOUD_ENV=test`
+
+### 3. SAML 2.0 Single Sign-On (dashboard)
+
+Optional. Replaces the password for the administration dashboard with the
+institution's identity provider (Microsoft Entra ID, Okta, Shibboleth, ADFS).
+Setup for Entra ID: [ENTRA_SSO_SETUP.md](../ENTRA_SSO_SETUP.md).
+
+- The SP Entity ID, Reply (ACS) URL, Sign-on URL and logout URL are built from the
+  configured `saml.site_url` and `app.base_url`, never from the request's `Host`
+  header, and are shown on the Configuration page to copy to the IdP. The
+  `sp_*` settings override them when set.
+- Built on the bundled `onelogin/php-saml` (see `src/system/lib/README.md`);
+  `Core\Saml` configures it and adds the checks below.
+- Files: `saml/sso.php` (start), `saml/acs.php` (sign-in), `saml/metadata.php`
+  (SP metadata for the IdP administrator), `saml/slo.php` (single logout).
+- **Accounts.** The email in the assertion must match an existing, active
+  SLOCloud user, or the sign-in is refused and logged. Optional
+  `saml.auto_provision` (off by default) creates the missing account at first
+  sign-in for emails at the domains in `saml.auto_provision_domains` (required;
+  subdomains do not match). The new account is active, has **no admin role**
+  (the read/export tier), and gets a random password nobody knows. An existing
+  or deactivated account is never changed or reactivated. Logged as
+  `saml_auto_provisioned`.
+- **Who may sign in is decided at the IdP** (Microsoft Entra ID: *Assignment
+  required = Yes* and the people or group assigned). SLO Cloud does not check
+  group membership. Auto-provisioning's domain list is only a second check.
+- Accepted only if the IdP signed the Assertion (and the Response, when
+  `saml.require_signed_response` is on) with a configured certificate using
+  SHA-256 or stronger. SHA-1 is refused. Two certificates can be configured
+  so the IdP can rotate its certificate without an outage.
+- Signature wrapping is refused: the signature must cover the one Assertion
+  that is read, and a Response with more than one Assertion is rejected.
+- Audience, issuer, destination, recipient, time window and `InResponseTo` are
+  all enforced; none may be absent.
+- **SP-initiated only.** `sso.php` records each AuthnRequest ID under
+  `<data>/var/saml`; a response is accepted only if it answers a recorded
+  request, once, within 10 minutes. This stops replay of a captured response
+  and refuses responses the IdP sends on its own. (The record is on disk, not in
+  the session, because the session cookie is `SameSite=Strict` and is not sent on
+  the IdP's cross-site POST.)
+- No `RequestedAuthnContext` or `NameIDPolicy` is sent, so the IdP chooses the
+  sign-in method (MFA, passkey) and its configured NameID.
+- `RelayState` is never read back, so there is no redirect target to tamper with.
+- Optional: signed AuthnRequests and encrypted assertions (SP certificate and
+  private key file, kept outside `config.yaml`); single logout when both
+  `saml.idp_slo_url` and `saml.sp_slo_url` are set (IdP logout messages must
+  be signed).
+- The Configuration page refuses to enable SAML while its settings cannot work.
+- Activity Log records `method: saml` successes and failures with a reason code
+  (`saml_invalid_response`, `saml_unsolicited_response`, `unknown_account`,
+  `account_inactive`, `saml_idp_logout`); the library's detailed reason goes to
+  the log file only.
+
+Tests: `php tests/saml_test.php` (signed fixtures for the accepted and refused cases).
 
 ### Emergency Admin (Break Glass Account)
 

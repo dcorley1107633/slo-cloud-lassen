@@ -96,6 +96,10 @@ $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $ScriptRoot 'lib\SLOCloud5.Common.psm1') -Force -DisableNameChecking
 $Sources = Get-Content -LiteralPath (Join-Path $ScriptRoot 'sources.json') -Raw | ConvertFrom-Json
 
+# Build stamp (yyyyMMddHHmm): bump whenever this script or the module changes, so a log shows which copy ran.
+$InstallerBuild = '202610250025'
+Write-Host "SLO Cloud 5 installer build $InstallerBuild" -ForegroundColor DarkGray
+
 $IisAppId = '{4dc3e181-e14b-4a21-b022-59fc669b0914}'   # well-known IIS application id for HTTP.sys bindings
 $PhpHandlerName = 'SLOCloud5-PHP_via_FastCGI'
 $RequiredPhpModules = @('PDO', 'pdo_sqlsrv', 'yaml', 'openssl', 'mbstring', 'curl', 'fileinfo', 'json', 'dom', 'iconv', 'session', 'Zend OPcache')
@@ -379,7 +383,7 @@ function Invoke-Preflight {
     $ourThumbs = @(Get-SloLiveOperations -Kind 'cert.create' | ForEach-Object { if ($_.after) { [string]$_.after.thumbprint } })
     foreach ($e in (Get-SloHttpSysSslBindings)) {
         if ($e.type -eq 'hostnameport' -and $e.key -ieq 'localhost:443' -and $ourThumbs -notcontains $e.certHash) {
-            Add-Finding 'BLOCK' "HTTP.sys already has a certificate binding for localhost:443 (certificate $($e.certHash)) that this installer did not create."
+            Add-Finding 'WARN' "HTTP.sys already has a certificate binding for localhost:443 (certificate $($e.certHash)) that this installer did not create. It is kept; no self-signed certificate is created or bound."
         }
         if ($e.type -eq 'ipport' -and $e.key -match ':443$') { Add-Finding 'INFO' "HTTP.sys IP binding $($e.key) exists (another site's certificate). Left unchanged." }
         if ($e.type -eq 'ccs' -and $e.key -match '443') { Add-Finding 'INFO' "HTTP.sys Central Certificate Store binding $($e.key) exists. Left unchanged." }
@@ -568,7 +572,7 @@ function Step-Source {
         $before = (Invoke-Git @('-C', $P.Repo, 'rev-parse', '--verify', '--quiet', 'HEAD') -AllowFailure).Text.Trim()
         if (-not (Test-SloPlanMode)) {
             Write-SloLog "fetching $RepositoryUrl (git may prompt for credentials; they are not logged)"
-            Invoke-Git @('-C', $P.Repo, 'fetch', '--prune', '--tags', 'origin') -Interactive | Out-Null
+            Invoke-Git @('-C', $P.Repo, 'fetch', '--force', '--prune', '--tags', 'origin') -Interactive | Out-Null
         }
     } else {
         Step-Directory $P.Repo @{ recurse = $true; guardGit = $true }
@@ -584,9 +588,10 @@ function Step-Source {
     }
 
     $commit = $null
+    $isBranch = $false
     foreach ($candidate in @("refs/remotes/origin/$Ref", "refs/tags/$Ref", $Ref)) {
         $r = Invoke-Git @('-C', $P.Repo, 'rev-parse', '--verify', '--quiet', "$candidate^{commit}") -AllowFailure
-        if ($r.ExitCode -eq 0 -and $r.Text.Trim()) { $commit = $r.Text.Trim(); break }
+        if ($r.ExitCode -eq 0 -and $r.Text.Trim()) { $commit = $r.Text.Trim(); $isBranch = ($candidate -eq "refs/remotes/origin/$Ref"); break }
     }
     if (-not $commit) { throw "Ref '$Ref' was not found in $RepositoryUrl (tried branch, tag and commit). Note: this repository has no 'main' branch." }
 
@@ -601,7 +606,12 @@ function Step-Source {
             -Before ([pscustomobject]@{ commit = $before; discardedLocalChanges = @($localChanges) }) -After ([pscustomobject]@{ commit = $commit }) `
             -Inverse @{ type = 'git.restore'; repo = $P.Repo; before = $before; after = $commit } `
             -Apply {
-                Invoke-Git @('-C', $P.Repo, 'checkout', '--force', '--detach', '--quiet', $commit) | Out-Null
+                if ($isBranch) {
+                    # A branch ref leaves repo on a local branch tracking origin, so a manual 'git pull' works.
+                    Invoke-Git @('-C', $P.Repo, 'checkout', '--force', '-B', $Ref, '--track', "origin/$Ref", '--quiet') | Out-Null
+                } else {
+                    Invoke-Git @('-C', $P.Repo, 'checkout', '--force', '--detach', '--quiet', $commit) | Out-Null
+                }
                 Invoke-Git @('-C', $P.Repo, 'reset', '--hard', '--quiet', $commit) | Out-Null
                 Invoke-Git @('-C', $P.Repo, 'clean', '-ffdxq') | Out-Null
             } | Out-Null
@@ -1046,6 +1056,15 @@ function Step-Site {
 }
 
 function Step-Certificate {
+    # The self-signed certificate is only a fallback. An existing localhost:443 binding that this
+    # installer did not create is kept and used as is; nothing is created, replaced or removed.
+    $ourThumbs = @(Get-SloLiveOperations -Kind 'cert.create' | ForEach-Object { if ($_.after) { ([string]$_.after.thumbprint).ToUpperInvariant() } })
+    $existingBinding = @(Get-SloHttpSysSslBindings | Where-Object { $_.type -eq 'hostnameport' -and $_.key -ieq 'localhost:443' })
+    if ($existingBinding.Count -gt 0 -and $ourThumbs -notcontains ([string]$existingBinding[0].certHash).ToUpperInvariant()) {
+        $script:Thumbprint = ([string]$existingBinding[0].certHash).ToUpperInvariant()
+        Add-SloSkip -Kind 'cert.create' -Resource 'cert:localhost' -Description "keeping the existing HTTP.sys localhost:443 certificate $($script:Thumbprint); no self-signed certificate created"
+        return
+    }
     $last = Get-SloLastLiveOperation -Kind 'cert.create' -Resource 'cert:localhost'
     if ($last -and $last.after -and $last.after.thumbprint) {
         $c = Get-Item -LiteralPath ("Cert:\LocalMachine\My\" + $last.after.thumbprint) -ErrorAction SilentlyContinue
@@ -1440,6 +1459,7 @@ try {
         }
         $summary = @"
 About to install SLO Cloud 5 (infrastructure only):
+  Installer    : build $InstallerBuild
   Install root : $($P.Root)
   Source       : $(if ($LocalSourcePath) { $LocalSourcePath } else { "$(Protect-SloText $RepositoryUrl) @ $Ref" })
   IIS site     : $SiteName (https://localhost/, self-signed certificate) / app pool $AppPoolName

@@ -69,6 +69,8 @@ final class Authorization
         'lti/throttled_failure_reasons.php' => 'include_only',
         'saml/sso.php' => 'saml_protocol',
         'saml/acs.php' => 'saml_protocol',
+        'saml/metadata.php' => 'saml_protocol',
+        'saml/slo.php' => 'saml_protocol',
         'setup/index.php' => 'installation_token',
     ];
 

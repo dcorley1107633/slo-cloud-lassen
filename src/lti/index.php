@@ -104,7 +104,7 @@ if ($targetType === 'section') {
             ]);
             $courseLabel = lti_apply_format($courseLabelFormat, [
                 'course' => (string)$row['course_number'],
-                'rest' => (string)$row['crn'] . ' (' . (string)$row['section_id'] . ')',
+                'rest' => (string)$row['crn'],
             ]);
             $target = [
                 'type' => 'section',
