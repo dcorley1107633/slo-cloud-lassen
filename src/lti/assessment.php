@@ -320,6 +320,10 @@ function saveSectionSloMethods($db, $dbPrefix, $crns, $termCode, $sloId, $assess
     return $sectionsUpdated;
 }
 
+// Site settings (both on by default): which optional documentation cards instructors see.
+$assessmentTypeEnabled = filter_var($config->get('app.assessment_type_enabled', true) ?? true, FILTER_VALIDATE_BOOLEAN);
+$improvementEnabled = filter_var($config->get('app.improvement_strategies_enabled', true) ?? true, FILTER_VALIDATE_BOOLEAN);
+
 // Handle form submission
 $successMessage = '';
 $errorMessage = '';
@@ -358,6 +362,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $termCode = (string)$authorizedTarget['term_code'];
         
         // Action-specific handlers
+        if (($action === 'save_method' && !$assessmentTypeEnabled) || ($action === 'save_strategies' && !$improvementEnabled)) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'This option is turned off for this site.']);
+            exit;
+        }
         if ($action === 'save_method' || $action === 'save_strategies') {
             $writeTransactionStarted = $db->beginTransaction();
             // Unified AJAX handler for saving section SLO methods (assessment_method + improvement_strategies)
@@ -387,6 +397,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $strategiesString = '|' . implode('||', array_map('trim', $improvementStrategies)) . '|';
             }
             
+            // A field whose card is turned off is not on the page, so keep what is already saved
+            // rather than letting the other card's save clear it.
+            if (!$assessmentTypeEnabled || !$improvementEnabled) {
+                $existingResult = $db->query(
+                    "SELECT assessment_method, improvement_strategies FROM {$dbPrefix}section_slo_methods
+                     WHERE crn = ? AND term_code = ? AND student_learning_outcome_fk = ?",
+                    [$authorizedCrn, $termCode, $sloId],
+                    'ssi'
+                );
+                $existingRow = $existingResult ? $existingResult->fetch() : null;
+                if (!$assessmentTypeEnabled) {
+                    $assessmentMethod = !empty($existingRow['assessment_method']) ? $existingRow['assessment_method'] : null;
+                }
+                if (!$improvementEnabled) {
+                    $strategiesString = !empty($existingRow['improvement_strategies']) ? $existingRow['improvement_strategies'] : null;
+                }
+            }
+
             // Save both fields together (blind DELETE+INSERT)
             $userId = $_SESSION['user_id'] ?? null;
             $sectionsUpdated = saveSectionSloMethods(
@@ -1253,10 +1281,14 @@ $theme->showHeader($context);
             <div class="card-body" id="instructions-body" role="region" aria-labelledby="instructions-title">
                 <ol class="mb-2">
                     <li><strong>Select Course Student Learning Outcome:</strong> Choose the specific learning outcome you're assessing.</li>
+                    <?php if ($assessmentTypeEnabled): ?>
                     <li><strong>Choose Primary Assessment Type:</strong> Select the type of assessment used (Quiz, Exam, Project, etc.). This is saved per Student Learning Outcome and will be remembered for this course section.</li>
+                    <?php endif; ?>
                     <li><strong>Enter Achievement Levels:</strong> Click the button to indicate whether each student Met, Partially Met, did Not Meet, or was Not Assessed for the learning outcome.</li>
                     <li><strong>Quick Actions:</strong> Use the buttons above the table to quickly set all students to the same achievement level.</li>
+                    <?php if ($improvementEnabled): ?>
                     <li><strong>Continuous Improvement Strategies (Optional):</strong> Check any strategies you've implemented or plan to implement.</li>
+                    <?php endif; ?>
                 </ol>
                 <p class="mb-0 text-muted"><i class="fas fa-info-circle" aria-hidden="true"></i> <em>Note: All changes are saved automatically as you make them. No save button needed.</em></p>
             </div>
@@ -1369,6 +1401,7 @@ $theme->showHeader($context);
             <input type="hidden" name="section_pk" value="<?= (int)$selectedSectionPk ?>">
             <input type="hidden" name="slo_id" value="<?= $selectedSloId ?>">
 
+            <?php if ($assessmentTypeEnabled): ?>
             <!-- Assessment Method Selection -->
             <div class="card card-info card-outline mb-3">
                 <div class="card-header">
@@ -1398,6 +1431,7 @@ $theme->showHeader($context);
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
 
             <div class="card">
                 <div class="card-header bg-primary text-white">
@@ -1482,6 +1516,7 @@ $theme->showHeader($context);
             </div>
         </form>
 
+        <?php if ($improvementEnabled): ?>
         <!-- Continuous Improvement Strategies -->
         <div class="card card-warning card-outline mt-3">
             <div class="card-header">
@@ -1528,6 +1563,7 @@ $theme->showHeader($context);
                 </fieldset>
             </div>
         </div>
+        <?php endif; ?>
         </div><!-- /.slo-content -->
         <?php endif; ?>
         <?php endif; ?>

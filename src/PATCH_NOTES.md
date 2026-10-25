@@ -1,5 +1,17 @@
 # SLOCloud Patch Notes
 
+## Unreleased
+
+### Administration
+
+- Two new settings under App, both on by default, turn off the Primary
+  Assessment Type card and the Continuous Improvement Strategies card on the
+  instructor assessment page: Show Primary Assessment Type
+  (`app.assessment_type_enabled`) and Show Continuous Improvement Strategies
+  (`app.improvement_strategies_enabled`). A card that is off is hidden and
+  its save is refused. Values already saved are kept, and saving the other
+  card does not clear them. Existing sites need no change.
+
 ## v5.2.7 (2026-10-24)
 
 ### Single sign-on

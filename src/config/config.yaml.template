@@ -158,6 +158,22 @@ app:
   # @help: Comma-separated list of improvement strategies that faculty can select when documenting assessment changes
   improvement_strategies: "|Active learning strategies||Assessment instrument revision||Assignment redesign aligned to SLOs||Capstone or signature assignment implementation||Close-the-loop documentation and reassessment||Course content revision||Course sequencing adjustments||Curriculum mapping (course-to-program alignment)||Disaggregation of SLO data for equity analysis||Early alert and targeted intervention||Faculty professional development||Instructional modality adjustments||OER adoption or development||Practice tests or low-stakes quizzes||Prerequisite review or modification||Rubric development or calibration||Scaffolded learning activities||Student feedback (surveys or focus groups)||Supplemental instruction or embedded tutoring||Technology-enhanced learning tools|"
   
+  # @label: Show Primary Assessment Type
+  # @description: Show the Primary Assessment Type card on the instructor assessment page
+  # @required: false
+  # @type: boolean
+  # @default: true
+  # @help: When off, the card is hidden and instructors cannot set an assessment type.
+  assessment_type_enabled: true
+  
+  # @label: Show Continuous Improvement Strategies
+  # @description: Show the Continuous Improvement Strategies card on the instructor assessment page
+  # @required: false
+  # @type: boolean
+  # @default: true
+  # @help: When off, the card is hidden and instructors cannot select improvement strategies.
+  improvement_strategies_enabled: true
+  
   # @label: Maintenance Mode
   # @description: Enable maintenance mode to restrict access to admin users only
   # @required: false
