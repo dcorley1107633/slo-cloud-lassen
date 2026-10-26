@@ -181,6 +181,7 @@ foreach (['src/.htaccess', 'src/web.config'] as $serverConfig) {
     foreach (['config', 'sessions', 'logs', 'backups', 'archive', 'var'] as $path) {
         $check(str_contains($contents, $path), "{$serverConfig} does not deny {$path} paths.");
     }
+    $check(str_contains($contents, '.md'), "{$serverConfig} does not deny .md documentation files.");
 }
 
 $logout = $source('src/logout.php');

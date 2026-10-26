@@ -1,5 +1,23 @@
 # SLOCloud Patch Notes
 
+## v5.2.12 (2026-10-25)
+
+### Security
+
+- The web server no longer serves the Markdown documentation in the web
+  folder (`README.md`, `PATCH_NOTES.md`, `EULA.md`, the VPATs and the
+  others). Anyone could read them without signing in, and the patch notes
+  give the exact version and its security fixes. `web.config` (IIS) and
+  `.htaccess` (Apache) now deny `.md` files; IIS answers 404. The VPAT pages
+  under Administration read the files from disk and are unaffected. The
+  installer's validator now fails, instead of warning, if `.md` files are
+  served.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.12 with no interface changes. Criterion results are carried forward.
+
 ## v5.2.11 (2026-10-25)
 
 ### Single sign-on

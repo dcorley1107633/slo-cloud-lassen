@@ -37,6 +37,11 @@ Options -Indexes
     Require all denied
 </FilesMatch>
 
+# Documentation (patch notes, README, VPATs): read by PHP from disk, never served
+<FilesMatch "\.md$">
+    Require all denied
+</FilesMatch>
+
 # Block direct HTTP access to runtime and sensitive directories (anywhere in the tree)
 <IfModule mod_rewrite.c>
     RewriteRule ^(.*/)?config(/|$) - [R=404,L]

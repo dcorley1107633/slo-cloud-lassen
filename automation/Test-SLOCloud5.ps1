@@ -376,7 +376,7 @@ if (-not $thumb) {
         '/config/' = 'FAIL'; '/config/config.yaml.template' = 'FAIL'; '/config/key.yaml.example' = 'FAIL'; '/config/web.config' = 'FAIL'
         '/config/config.yaml' = 'FAIL'; '/config/backups/' = 'FAIL'; '/var/' = 'FAIL'; '/logs/' = 'FAIL'; '/sessions/' = 'FAIL'
         '/web.config' = 'FAIL'; '/.git/config' = 'FAIL'; '/system/database/schema_mssql.sql' = 'FAIL'; '/system/database/schema.sql' = 'FAIL'
-        '/PATCH_NOTES.md' = 'WARN'; '/README.md' = 'WARN'
+        '/PATCH_NOTES.md' = 'FAIL'; '/README.md' = 'FAIL'; '/vpat/README.md' = 'FAIL'
     }
     foreach ($u in $blocked.Keys) {
         $r = [SloValidatorHttp]::Get("https://localhost$u", $thumb, '', '')

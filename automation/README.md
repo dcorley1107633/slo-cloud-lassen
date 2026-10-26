@@ -271,7 +271,7 @@ Defaults come from `C:\ProgramData\SLOCloud5\installer\install-manifest.json`. Y
 | ACLs | Effective app pool rights per folder (none / read / modify as in section 4); no access for broad groups |
 | Setup state | `config.yaml` and `key.yaml` existence; no `key.yaml` inside the web root; no leftover setup code; no `phpinfo`/`info`/`test`/probe files |
 | HTTPS | `/` responds below 500; security headers present; `X-Powered-By` absent; `/setup/` returns 200 before setup and 403 after |
-| Blocked URLs | `/config/`, `/config/*.yaml*`, `/config/web.config`, `/config/backups/`, `/var/`, `/logs/`, `/sessions/`, `/web.config`, `/.git/config` and the `.sql` schema files must return 403 or 404. `.md` files are a WARN |
+| Blocked URLs | `/config/`, `/config/*.yaml*`, `/config/web.config`, `/config/backups/`, `/var/`, `/logs/`, `/sessions/`, `/web.config`, `/.git/config`, the `.sql` schema files and the `.md` documentation (`/README.md`, `/PATCH_NOTES.md`, `/vpat/README.md`) must return 403 or 404 |
 | FastCGI probe | PHP as `cgi-fcgi` inside `SLOCloud5`; sees the environment variables; extensions; ini values; can write `data`, `data\tmp` and `web\config`; **cannot** write the web root or list `repo` |
 | SQL | TCP reachability (port only; not proof that the database is ready) |
 | Time | `w32tm` status (LTI allows 300 s of clock skew, SAML 60 s) |
