@@ -238,7 +238,7 @@ Where to look: **Administration, Activity Log** for the short reason, and the lo
 | `The response was received at ... instead of ...`, `A valid SubjectConfirmation was not found` | The **Reply URL** in Entra differs from the Reply URL SLO Cloud shows, or users reach SLO Cloud by a different host name than **Site Address**. Make them identical and use that host name in the browser. |
 | `Could not validate timestamp: expired` / `not yet valid` | The server clock is wrong. Fix time synchronization on the SLO Cloud web server. |
 | `The InResponseTo of the Response ... does not match` | The response is for another sign-in. Start again from the login page. |
-| `Response has no usable email address` | Entra sent no email claim. Fill in **Email** on the user in Entra, or change the claim's source attribute to `user.userprincipalname` (section 5), and check **Email Attribute Name** is the claim's full name or the short name Entra shows (`emailaddress`). |
+| `Response has no usable email address` | Entra sent no email claim. Fill in **Email** on the user in Entra, or change the claim's source attribute to `user.userprincipalname` (section 5), and check **Email Attribute Name** is the claim's full name or the short name Entra shows (`emailaddress`). The page lists the attributes Entra actually sent. |
 | `Unable to create the SAML request folder` | The web server account cannot write to `<data>\var`. Give it Modify access there. |
 
 ### Errors shown by Microsoft

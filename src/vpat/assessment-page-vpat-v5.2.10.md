@@ -1,9 +1,9 @@
 # Accessibility Conformance Report
-## SLOCloud LTI Assessment Entry Interface 5.2.9
+## SLOCloud LTI Assessment Entry Interface 5.2.10
 
 VPAT WCAG Edition 2.5, based on WCAG 2.2. Evaluation date: October 24, 2026.
 
-This release was evaluated by complete in-scope source inventory, automated PHP and markup-regression checks, and computed checks of the application-defined contrast palette, including all 18 color schemes (white text on every scheme color, scheme-colored links on white, light gray and striped rows, and highlight text on each scheme's dark menu color, all at least 4.5:1). Every WCAG 2.2 Level A and AA criterion was found supported or not applicable in the scoped interface. SLOCloud LTI Assessment Entry Interface 5.2.9 claims WCAG 2.2 Level AA conformance for this scope. SLOCloud is a browser-based application, so assistive-technology support is provided by the user's browser and assistive technology; conformance depends on the markup, semantics and styling the application delivers, which is what this report evaluates.
+This release was evaluated by complete in-scope source inventory, automated PHP and markup-regression checks, and computed checks of the application-defined contrast palette, including all 18 color schemes (white text on every scheme color, scheme-colored links on white, light gray and striped rows, and highlight text on each scheme's dark menu color, all at least 4.5:1). Every WCAG 2.2 Level A and AA criterion was found supported or not applicable in the scoped interface. SLOCloud LTI Assessment Entry Interface 5.2.10 claims WCAG 2.2 Level AA conformance for this scope. SLOCloud is a browser-based application, so assistive-technology support is provided by the user's browser and assistive technology; conformance depends on the markup, semantics and styling the application delivers, which is what this report evaluates.
 
 Implementation and browser evidence: [SLOCloud accessibility verification](evidence/v5.1.0-accessibility-verification.md).
 
@@ -11,7 +11,7 @@ Implementation and browser evidence: [SLOCloud accessibility verification](evide
 
 | Field | Value |
 |---|---|
-| Product | SLOCloud LTI Assessment Entry Interface 5.2.9 |
+| Product | SLOCloud LTI Assessment Entry Interface 5.2.10 |
 | Description | Instructor workflow for selecting a section/outcome and recording assessment methods, achievement levels, and improvement strategies |
 | Contact | SLOCloud Project Team |
 | Evaluation methods | Source review; PHP syntax and regression tests; static accessibility assertions; browser verification of shared validation, tables, status messages, dialogs, focus return, and session warning/extension |
@@ -85,7 +85,7 @@ Implementation and browser evidence: [SLOCloud accessibility verification](evide
 
 ## Revised Section 508 and EN 301 549
 
-Applicable web requirements map to the supporting WCAG results above. SLOCloud 5.2.9 claims conformance with the WCAG-based web requirements of Revised Section 508 and EN 301 549 for the evaluated SLOCloud scope. The parent LMS remains outside SLOCloud's control and evaluation scope.
+Applicable web requirements map to the supporting WCAG results above. SLOCloud 5.2.10 claims conformance with the WCAG-based web requirements of Revised Section 508 and EN 301 549 for the evaluated SLOCloud scope. The parent LMS remains outside SLOCloud's control and evaluation scope.
 
 ## Additional release validation
 

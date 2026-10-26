@@ -1,5 +1,25 @@
 # SLOCloud Patch Notes
 
+## v5.2.10 (2026-10-25)
+
+### Single sign-on
+
+- The NameID is used as the email only when Email Attribute Name is blank.
+  When a name is set and the response does not carry that attribute,
+  sign-in is refused with "Response has no usable email address", which
+  lists the attributes received. Before, SLO Cloud quietly used the NameID,
+  so a wrong attribute name went unnoticed while the NameID happened to be
+  the user's email (Microsoft Entra ID sends the user principal name there),
+  and failed or created a second account for anyone whose NameID was not.
+  The old `email` default still finds Entra's email claim. If sign-in stops
+  after this update, set Email Attribute Name to one of the attributes the
+  error lists, or leave it blank to sign in by NameID.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.10 with no interface changes. Criterion results are carried forward.
+
 ## v5.2.9 (2026-10-25)
 
 ### Single sign-on

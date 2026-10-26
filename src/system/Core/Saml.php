@@ -379,7 +379,9 @@ final class Saml
                 $email = self::attributeValue($attributes, 'emailaddress');
             }
         }
-        if ($email === '') {
+        // The NameID stands in for the email only when no attribute is configured. A configured
+        // attribute that is missing is a setting error, reported below rather than worked around.
+        if ($emailAttribute === '') {
             $nameId = trim((string)$auth->getNameId());
             if (filter_var($nameId, FILTER_VALIDATE_EMAIL) !== false) {
                 $email = $nameId;
@@ -390,7 +392,7 @@ final class Saml
                 'Response has no usable email address',
                 'saml_no_email',
                 'The identity provider signed the user in but sent no usable email address, and SLO Cloud signs people in by email. '
-                . 'Make sure the user has an email in the identity provider, or send the email in the attribute named below.',
+                . 'Make sure the user has an email in the identity provider and that Email Attribute Name is one of the attributes listed below.',
                 [
                     'Email Attribute Name (SLO Cloud setting)' => $emailAttribute !== '' ? $emailAttribute : '(blank: NameID is used)',
                     'Attributes in the response' => $attributes === [] ? '(none)' : implode(', ', array_keys($attributes)),

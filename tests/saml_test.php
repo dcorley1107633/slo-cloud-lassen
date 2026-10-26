@@ -185,12 +185,28 @@ try {
     $check(false, 'a response with both signatures was refused: ' . $e->getMessage());
 }
 
-// Attribute missing: the NameID (an email here) is used.
+// Email Attribute Name blank: the NameID (an email here) is used.
 try {
-    $identity = $validate($buildResponse(['email_attribute' => false]));
-    $check($identity['email'] === 'faculty@example.edu', 'NameID fallback: wrong email');
+    $identity = $validate($buildResponse(['email_attribute' => false]), '_req0123456789abcdef', ['attr_email' => ''] + $config);
+    $check($identity['email'] === 'faculty@example.edu', 'NameID with a blank attribute name: wrong email');
 } catch (Throwable $e) {
-    $check(false, 'NameID email fallback failed: ' . $e->getMessage());
+    $check(false, 'NameID with a blank attribute name failed: ' . $e->getMessage());
+}
+
+// Email Attribute Name set but the attribute is missing: refused, even though the NameID is an email.
+try {
+    $validate($buildResponse(['email_attribute' => false]));
+    $check(false, 'a missing configured email attribute fell back to the NameID');
+} catch (SamlSignInError $e) {
+    $check($e->reason === 'saml_no_email', 'missing configured email attribute: got ' . $e->reason);
+}
+
+// The pre-5.2.9 default 'email' still finds Entra's email claim.
+try {
+    $identity = $validate($buildResponse(), '_req0123456789abcdef', ['attr_email' => 'email'] + $config);
+    $check($identity['email'] === 'faculty@example.edu', 'old email default: wrong email');
+} catch (Throwable $e) {
+    $check(false, 'old email default did not find the emailaddress claim: ' . $e->getMessage());
 }
 
 // Entra's short claim names (as its Attributes & Claims page shows them) match the full names.
