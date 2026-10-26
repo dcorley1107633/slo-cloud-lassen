@@ -185,13 +185,24 @@ $show = Invoke-Exe "$env:windir\System32\netsh.exe" @('http', 'show', 'sslcert',
 if ($show.Text -match 'Certificate Hash\s*:\s*([0-9a-fA-F]{40})') {
     $thumb = $Matches[1].ToUpperInvariant()
     Add-Result 'tls' 'PASS' "HTTP.sys hostnameport=localhost:443 -> $thumb"
-    $cert = Get-Item -LiteralPath "Cert:\LocalMachine\My\$thumb" -ErrorAction SilentlyContinue
-    if (-not $cert) { Add-Result 'tls' 'FAIL' 'bound certificate not found in LocalMachine\My' } else {
+    # The binding names its store (IIS Manager imports into WebHosting); blank or (null) means My.
+    $store = if ($show.Text -match 'Certificate Store Name\s*:\s*(\S+)' -and $Matches[1] -ne '(null)') { $Matches[1] } else { 'My' }
+    $cert = Get-Item -LiteralPath "Cert:\LocalMachine\$store\$thumb" -ErrorAction SilentlyContinue
+    if (-not $cert) { Add-Result 'tls' 'FAIL' "bound certificate not found in LocalMachine\$store" } else {
+        # Only the installer's own self-signed certificate must name localhost; a certificate the
+        # installer kept (one already bound before it ran) is reported, not judged on its names.
+        $ours = [string]$cert.FriendlyName -like 'SLO Cloud 5 localhost (self-signed)*'
         $dns = @($cert.DnsNameList | ForEach-Object { $_.Unicode })
-        if ($dns -contains 'localhost') { Add-Result 'tls' 'PASS' 'certificate SAN contains DNS=localhost' } else { Add-Result 'tls' 'FAIL' "certificate SAN lacks localhost ($($dns -join ', '))" }
-        if ($cert.NotAfter -lt (Get-Date)) { Add-Result 'tls' 'FAIL' "certificate expired $($cert.NotAfter)" } elseif ($cert.NotAfter -lt (Get-Date).AddDays(30)) { Add-Result 'tls' 'WARN' "certificate expires $($cert.NotAfter); rerun the installer to renew" } else { Add-Result 'tls' 'PASS' "certificate valid until $($cert.NotAfter.ToString('yyyy-MM-dd'))" }
+        if ($ours) {
+            if ($dns -contains 'localhost') { Add-Result 'tls' 'PASS' 'certificate SAN contains DNS=localhost' } else { Add-Result 'tls' 'FAIL' "certificate SAN lacks localhost ($($dns -join ', '))" }
+        } else {
+            Add-Result 'tls' 'INFO' "existing certificate kept (LocalMachine\$store): $($cert.Subject); names $($dns -join ', ')"
+        }
+        $renew = if ($ours) { 'rerun the installer to renew' } else { 'renew it where it was issued' }
+        if ($cert.NotAfter -lt (Get-Date)) { Add-Result 'tls' 'FAIL' "certificate expired $($cert.NotAfter)" } elseif ($cert.NotAfter -lt (Get-Date).AddDays(30)) { Add-Result 'tls' 'WARN' "certificate expires $($cert.NotAfter); $renew" } else { Add-Result 'tls' 'PASS' "certificate valid until $($cert.NotAfter.ToString('yyyy-MM-dd'))" }
         if (-not $cert.HasPrivateKey) { Add-Result 'tls' 'FAIL' 'certificate has no private key' }
-        if ($cert.Subject -eq $cert.Issuer) { Add-Result 'tls' 'INFO' 'self-signed: browsers will not trust it (expected for the localhost phase)' }
+        if ($ours) { Add-Result 'tls' 'INFO' 'self-signed: browsers will not trust it (expected for the localhost phase)' }
+        elseif ($cert.Subject -eq $cert.Issuer) { Add-Result 'tls' 'INFO' 'self-signed: browsers will not trust it unless it is distributed to them' }
     }
 } else { Add-Result 'tls' 'FAIL' 'no HTTP.sys certificate binding for localhost:443' }
 

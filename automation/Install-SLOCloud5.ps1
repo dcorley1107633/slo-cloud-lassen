@@ -97,7 +97,7 @@ Import-Module (Join-Path $ScriptRoot 'lib\SLOCloud5.Common.psm1') -Force -Disabl
 $Sources = Get-Content -LiteralPath (Join-Path $ScriptRoot 'sources.json') -Raw | ConvertFrom-Json
 
 # Build stamp (yyyyMMddHHmm): bump whenever this script or the module changes, so a log shows which copy ran.
-$InstallerBuild = '202610250025'
+$InstallerBuild = '202610252343'
 Write-Host "SLO Cloud 5 installer build $InstallerBuild" -ForegroundColor DarkGray
 
 $IisAppId = '{4dc3e181-e14b-4a21-b022-59fc669b0914}'   # well-known IIS application id for HTTP.sys bindings
@@ -117,6 +117,7 @@ $script:AppVersion = $null
 $script:PhpModules = @()
 $script:PhpSources = @()
 $script:Thumbprint = $null
+$script:CertStore = 'My'
 $script:PoolSid = $null
 $script:SqlCheck = $null
 $script:GitExe = $null
@@ -1062,6 +1063,7 @@ function Step-Certificate {
     $existingBinding = @(Get-SloHttpSysSslBindings | Where-Object { $_.type -eq 'hostnameport' -and $_.key -ieq 'localhost:443' })
     if ($existingBinding.Count -gt 0 -and $ourThumbs -notcontains ([string]$existingBinding[0].certHash).ToUpperInvariant()) {
         $script:Thumbprint = ([string]$existingBinding[0].certHash).ToUpperInvariant()
+        if ($existingBinding[0].storeName -and $existingBinding[0].storeName -ne '(null)') { $script:CertStore = [string]$existingBinding[0].storeName }
         Add-SloSkip -Kind 'cert.create' -Resource 'cert:localhost' -Description "keeping the existing HTTP.sys localhost:443 certificate $($script:Thumbprint); no self-signed certificate created"
         return
     }
@@ -1306,7 +1308,7 @@ function Write-InstallManifest {
     $installRun = @(@((Get-SloJournal).runs) | Where-Object { $_.kind -eq 'install' -and $_.status -ne 'aborted' } | Sort-Object startedAt)
     $installRun = if ($installRun.Count -gt 0) { $installRun[-1] } else { $run }
     $site = Get-SloSiteSummary -Name $SiteName
-    $cert = if ($script:Thumbprint) { Get-Item -LiteralPath "Cert:\LocalMachine\My\$($script:Thumbprint)" -ErrorAction SilentlyContinue } else { $null }
+    $cert = if ($script:Thumbprint) { Get-Item -LiteralPath "Cert:\LocalMachine\$($script:CertStore)\$($script:Thumbprint)" -ErrorAction SilentlyContinue } else { $null }
     $inetStp = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\InetStp' -ErrorAction SilentlyContinue
     $acl = [ordered]@{}
     # Loop variable must not be $p: names are case-insensitive and it would replace $P.
@@ -1339,7 +1341,7 @@ function Write-InstallManifest {
             httpSys443      = @(Get-SloHttpSysSslBindings | Where-Object { $_.key -match ':443$' })
             defaultWebSite  = (Get-SloSiteSummary -Name 'Default Web Site')
         }
-        certificate     = $(if ($cert) { [ordered]@{ thumbprint = $cert.Thumbprint; subject = $cert.Subject; san = (($cert.DnsNameList | ForEach-Object { "DNS=$($_.Unicode)" }) -join ', '); notAfter = $cert.NotAfter.ToString('o'); trusted = $false } } else { $null })
+        certificate     = $(if ($cert) { [ordered]@{ thumbprint = $cert.Thumbprint; subject = $cert.Subject; san = (($cert.DnsNameList | ForEach-Object { "DNS=$($_.Unicode)" }) -join ', '); notAfter = $cert.NotAfter.ToString('o'); store = "LocalMachine\$($script:CertStore)"; trusted = $cert.Verify() } } else { $null })
         odbc            = (Get-OdbcDriver)
         vcRedist        = (Get-VcRedistState)
         machineEnv      = [ordered]@{ SLOCLOUD_DATA_PATH = (Get-SloMachineEnv 'SLOCLOUD_DATA_PATH').value; SLOCLOUD_ENV = (Get-SloMachineEnv 'SLOCLOUD_ENV').value; phpOnPath = (Test-SloPathEntry -PathValue ((Get-SloMachineEnv 'Path').value) -Entry $P.Php) }
