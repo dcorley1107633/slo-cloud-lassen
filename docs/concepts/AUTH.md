@@ -55,7 +55,7 @@ Optional. Replaces the password for the administration dashboard with the
 institution's identity provider (Microsoft Entra ID, Okta, Shibboleth, ADFS).
 Setup for Entra ID: [ENTRA_SSO_SETUP.md](../ENTRA_SSO_SETUP.md).
 
-- The SP Entity ID, Reply (ACS) URL, Sign-on URL and logout URL are built from the
+- The SP Entity ID, Reply (ACS) URL, Sign on URL and logout URL are built from the
   configured `saml.site_url` and `app.base_url`, never from the request's `Host`
   header, and are shown on the Configuration page to copy to the IdP. The
   `sp_*` settings override them when set.

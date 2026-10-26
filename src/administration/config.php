@@ -192,8 +192,46 @@ $theme->showHeader($context);
             </h2>
         </div>
         <div class="card-body">
+            <?php
+            // SSO: the values to copy into the identity provider come first, and the three
+            // override boxes (blank = built from Site Address) sit in a collapsed section
+            // with the value in use as their placeholder.
+            $samlOverrideKeys = ['saml.sp_entity_id', 'saml.sp_acs_url', 'saml.sp_slo_url'];
+            $samlOverrides = [];
+            if ($sectionName === 'saml'):
+                $samlValues = \SLOCloud\Core\Saml::configFrom($config);
+                $samlDerived = \SLOCloud\Core\Saml::derivedUrls($samlValues['site_url'], (string)$config->get('app.base_url', '/'));
+                $samlShown = [
+                    'Identifier (Entity ID)' => $samlValues['sp_entity_id'],
+                    'Reply URL (Assertion Consumer Service URL)' => $samlValues['sp_acs_url'],
+                    'Sign on URL' => $samlDerived['sso_url'],
+                    'Logout Url' => $samlValues['sp_slo_url'],
+                    'Metadata file (for Upload metadata file)' => $samlDerived['metadata_url'],
+                ];
+                foreach (['saml.sp_entity_id' => 'entity_id', 'saml.sp_acs_url' => 'acs_url', 'saml.sp_slo_url' => 'slo_url'] as $samlKey => $samlDerivedKey) {
+                    if (isset($sectionFields[$samlKey])) {
+                        $samlOverrides[$samlKey] = $sectionFields[$samlKey] + ['placeholder' => (string)$samlDerived[$samlDerivedKey]];
+                    }
+                }
+            ?>
+            <h3 class="h5">Copy these into your identity provider</h3>
+            <?php if ($samlValues['sp_acs_url'] === ''): ?>
+            <p class="text-muted">Enter the Site Address below and save to see the values to copy into your identity provider.</p>
+            <?php else: ?>
+            <p class="text-muted">Built from Site Address. The names are the field names in Microsoft Entra ID, Single sign-on, Basic SAML Configuration (see docs/ENTRA_SSO_SETUP.md). They are not entered in the boxes below.</p>
+            <dl>
+                <?php foreach ($samlShown as $samlLabel => $samlValue): ?>
+                <?php if ($samlValue === '') continue; ?>
+                <dt><?= htmlspecialchars($samlLabel) ?></dt>
+                <dd><code class="user-select-all"><?= htmlspecialchars($samlValue) ?></code></dd>
+                <?php endforeach; ?>
+            </dl>
+            <?php endif; ?>
+            <h3 class="h5">Settings</h3>
+            <?php endif; ?>
             <div class="row">
                 <?php foreach ($sectionFields as $key => $meta): ?>
+                <?php if (isset($samlOverrides[$key])) continue; ?>
                 <div class="col-md-6">
                     <?php
                     $value = $config->get($key, $meta['default'] ?? '');
@@ -203,30 +241,19 @@ $theme->showHeader($context);
 
                 <?php endforeach; ?>
             </div>
-            <?php if ($sectionName === 'saml'): ?>
-            <?php
-            $samlValues = \SLOCloud\Core\Saml::configFrom($config);
-            $samlShown = [
-                'Identifier (Entity ID)' => $samlValues['sp_entity_id'],
-                'Reply URL (Assertion Consumer Service URL)' => $samlValues['sp_acs_url'],
-                'Sign-on URL' => \SLOCloud\Core\Saml::derivedUrls($samlValues['site_url'], (string)$config->get('app.base_url', '/'))['sso_url'],
-                'Logout URL (optional)' => $samlValues['sp_slo_url'],
-                'SP metadata' => \SLOCloud\Core\Saml::derivedUrls($samlValues['site_url'], (string)$config->get('app.base_url', '/'))['metadata_url'],
-            ];
-            ?>
-            <h3 class="h5 mt-3">Values to enter at the identity provider</h3>
-            <?php if ($samlValues['sp_acs_url'] === ''): ?>
-            <p class="text-muted mb-0">Enter the Site Address and save to see the addresses to give your identity provider.</p>
-            <?php else: ?>
-            <p class="text-muted">Built from the saved settings. In Microsoft Entra ID these go in Basic SAML Configuration; see docs/ENTRA_SSO_SETUP.md.</p>
-            <dl class="mb-0">
-                <?php foreach ($samlShown as $samlLabel => $samlValue): ?>
-                <?php if ($samlValue === '') continue; ?>
-                <dt><?= htmlspecialchars($samlLabel) ?></dt>
-                <dd><code class="user-select-all"><?= htmlspecialchars($samlValue) ?></code></dd>
-                <?php endforeach; ?>
-            </dl>
-            <?php endif; ?>
+            <?php if ($samlOverrides !== []): ?>
+            <?php $samlOverrideSet = array_filter(array_keys($samlOverrides), fn($k) => trim((string)$config->get($k, '')) !== '') !== []; ?>
+            <details class="mt-2"<?= $samlOverrideSet ? ' open' : '' ?>>
+                <summary>Advanced: only if your identity provider already has different addresses registered</summary>
+                <p class="text-muted mt-2">Leave these blank to use the values listed at the top of this card. A filled-in box replaces that value and no longer follows Site Address.</p>
+                <div class="row">
+                    <?php foreach ($samlOverrides as $key => $meta): ?>
+                    <div class="col-md-6">
+                        <?= renderConfigField($key, $meta, $config->get($key, $meta['default'] ?? '')) ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </details>
             <?php endif; ?>
         </div>
     </div>

@@ -163,9 +163,9 @@ final class Saml
         $problems = [];
 
         foreach ([
-            'idp_entity_id' => 'IdP Entity ID',
-            'idp_sso_url' => 'IdP SSO URL',
-            'idp_cert' => 'IdP Signing Certificate',
+            'idp_entity_id' => 'Microsoft Entra Identifier (IdP Entity ID)',
+            'idp_sso_url' => 'Login URL (IdP SSO URL)',
+            'idp_cert' => 'Certificate (Base64): IdP signing certificate',
         ] as $key => $label) {
             if ((string)($c[$key] ?? '') === '') {
                 $problems[] = "{$label} is empty.";
@@ -187,10 +187,10 @@ final class Saml
         }
 
         foreach ([
-            'idp_sso_url' => 'IdP SSO URL',
-            'idp_slo_url' => 'IdP SLO URL',
-            'sp_acs_url' => 'SP Assertion Consumer Service URL',
-            'sp_slo_url' => 'SP Single Logout URL',
+            'idp_sso_url' => 'Login URL (IdP SSO URL)',
+            'idp_slo_url' => 'Logout URL (IdP SLO URL)',
+            'sp_acs_url' => 'Reply URL (Assertion Consumer Service URL) override',
+            'sp_slo_url' => 'Logout Url override',
         ] as $key => $label) {
             $url = (string)($c[$key] ?? '');
             if ($url !== '' && !self::isSecureUrl($url)) {
@@ -198,7 +198,7 @@ final class Saml
             }
         }
 
-        foreach (['idp_cert' => 'IdP Signing Certificate', 'idp_cert_2' => 'IdP Signing Certificate (rollover)'] as $key => $label) {
+        foreach (['idp_cert' => 'Certificate (Base64): IdP signing certificate', 'idp_cert_2' => 'Certificate (Base64): rollover'] as $key => $label) {
             $cert = (string)($c[$key] ?? '');
             if ($cert !== '' && @openssl_x509_read(SamlUtils::formatCert($cert, true)) === false) {
                 $problems[] = "{$label} is not a valid X.509 certificate.";
@@ -373,7 +373,11 @@ final class Saml
         $email = '';
         $emailAttribute = (string)($c['attr_email'] ?? '');
         if ($emailAttribute !== '') {
-            $email = trim((string)($attributes[$emailAttribute][0] ?? ''));
+            $email = self::attributeValue($attributes, $emailAttribute);
+            // 'email' was the template default before 5.2.9; Microsoft Entra ID sends emailaddress.
+            if ($email === '' && $emailAttribute === 'email') {
+                $email = self::attributeValue($attributes, 'emailaddress');
+            }
         }
         if ($email === '') {
             $nameId = trim((string)$auth->getNameId());
@@ -398,7 +402,7 @@ final class Saml
         $name = '';
         $nameAttribute = (string)($c['attr_name'] ?? '');
         if ($nameAttribute !== '') {
-            $name = trim((string)($attributes[$nameAttribute][0] ?? ''));
+            $name = self::attributeValue($attributes, $nameAttribute);
         }
 
         return [
@@ -409,6 +413,30 @@ final class Saml
             'session_index' => (string)$auth->getSessionIndex(),
             'assertion_id' => (string)$auth->getLastAssertionId(),
         ];
+    }
+
+    /**
+     * First value of an attribute. A name without a namespace, as Microsoft Entra ID
+     * shows claims (emailaddress, displayname), also matches the one attribute whose
+     * full name ends in it, for example .../identity/claims/emailaddress. Case is
+     * ignored for that match; if several attributes end in the name, none is used.
+     */
+    public static function attributeValue(array $attributes, string $name): string
+    {
+        if (isset($attributes[$name])) {
+            return trim((string)($attributes[$name][0] ?? ''));
+        }
+        if ($name === '' || strpbrk($name, '/:') !== false) {
+            return '';
+        }
+        $matches = [];
+        foreach ($attributes as $key => $values) {
+            $short = substr((string)$key, (int)strrpos('/' . $key, '/'));
+            if (strcasecmp($short, $name) === 0) {
+                $matches[] = $values;
+            }
+        }
+        return count($matches) === 1 ? trim((string)($matches[0][0] ?? '')) : '';
     }
 
     /**
@@ -568,7 +596,7 @@ final class Saml
                 return $error('saml_unsigned', 'The assertion is not signed. SLO Cloud only accepts signed assertions. Microsoft Entra ID: Single sign-on, SAML Certificates, Signing Option = Sign SAML assertion (or Sign SAML response and assertion).');
 
             case ValidationError::INVALID_SIGNATURE:
-                return $error('saml_bad_signature', 'The signature could not be verified with the IdP Signing Certificate saved in SLO Cloud. Either that is not the certificate the identity provider signs with (it may have been replaced; download the current Certificate (Base64) and paste it into IdP Signing Certificate, or into the rollover field), or the response was altered on the way.');
+                return $error('saml_bad_signature', 'The signature could not be verified with the Certificate (Base64) saved in SLO Cloud. Either that is not the certificate the identity provider signs with (it may have been replaced; download the current Certificate (Base64) and paste it into the IdP signing certificate box, or into the rollover box), or the response was altered on the way.');
 
             case ValidationError::WRONG_NUMBER_OF_ASSERTIONS:
             case ValidationError::WRONG_SIGNED_ELEMENT:
@@ -581,27 +609,27 @@ final class Saml
                 return $error('saml_bad_structure', 'The signature does not cover the one assertion SLO Cloud would read, or the response holds more than one assertion. A normal identity provider does not send this; the response may have been tampered with.');
 
             case ValidationError::WRONG_AUDIENCE:
-                return $error('saml_wrong_audience', 'The response is addressed to a different application than this SLO Cloud. The identity provider\'s Identifier (Entity ID) must equal SP Entity ID in SLO Cloud, character for character.', [
-                    'SP Entity ID in SLO Cloud' => (string)($c['sp_entity_id'] ?? ''),
+                return $error('saml_wrong_audience', 'The response is addressed to a different application than this SLO Cloud. The Identifier (Entity ID) at the identity provider must equal the Identifier (Entity ID) SLO Cloud lists, character for character.', [
+                    'Identifier (Entity ID) in SLO Cloud' => (string)($c['sp_entity_id'] ?? ''),
                     'Audience in the response' => $between("/got '(.*)'\\)?$/s"),
                 ]);
             case ValidationError::WRONG_ISSUER:
             case ValidationError::ISSUER_NOT_FOUND_IN_ASSERTION:
             case ValidationError::ISSUER_MULTIPLE_IN_RESPONSE:
-                return $error('saml_wrong_issuer', 'The response comes from a different identity provider than the one configured. IdP Entity ID in SLO Cloud must equal the identity provider\'s identifier exactly (Microsoft Entra ID: Microsoft Entra Identifier, including the trailing slash and the right tenant).', [
-                    'IdP Entity ID in SLO Cloud' => (string)($c['idp_entity_id'] ?? ''),
+                return $error('saml_wrong_issuer', 'The response comes from a different identity provider than the one configured. Microsoft Entra Identifier (IdP Entity ID) in SLO Cloud must equal the identity provider\'s identifier exactly (in Microsoft Entra ID, the Microsoft Entra Identifier, including the trailing slash and the right tenant).', [
+                    'Microsoft Entra Identifier (IdP Entity ID) in SLO Cloud' => (string)($c['idp_entity_id'] ?? ''),
                     'Issuer in the response' => $between("/got '(.*)'\\)?$/s"),
                 ]);
             case ValidationError::WRONG_DESTINATION:
             case ValidationError::EMPTY_DESTINATION:
-                return $error('saml_wrong_destination', 'The response was addressed to a different address than the one it arrived at. The Reply URL at the identity provider must equal SP Assertion Consumer Service URL in SLO Cloud, and people must reach SLO Cloud by that same host name.', [
-                    'SP Assertion Consumer Service URL in SLO Cloud' => (string)($c['sp_acs_url'] ?? ''),
+                return $error('saml_wrong_destination', 'The response was addressed to a different address than the one it arrived at. The Reply URL (Assertion Consumer Service URL) at the identity provider must equal the one SLO Cloud lists, and people must reach SLO Cloud by that same host name.', [
+                    'Reply URL (Assertion Consumer Service URL) in SLO Cloud' => (string)($c['sp_acs_url'] ?? ''),
                     'Addressed to' => $between('/instead of (.*)$/s'),
                     'Arrived at' => $between('/received at (.*) instead of/s'),
                 ]);
             case ValidationError::WRONG_SUBJECTCONFIRMATION:
-                return $error('saml_wrong_destination', 'The assertion is not confirmed for this address or has already expired. Most often the Reply URL at the identity provider differs from SP Assertion Consumer Service URL in SLO Cloud, or the server clock is wrong.', [
-                    'SP Assertion Consumer Service URL in SLO Cloud' => (string)($c['sp_acs_url'] ?? ''),
+                return $error('saml_wrong_destination', 'The assertion is not confirmed for this address or has already expired. Most often the Reply URL (Assertion Consumer Service URL) at the identity provider differs from the one SLO Cloud lists, or the server clock is wrong.', [
+                    'Reply URL (Assertion Consumer Service URL) in SLO Cloud' => (string)($c['sp_acs_url'] ?? ''),
                     'Server time (UTC)' => gmdate('Y-m-d H:i:s'),
                 ]);
 

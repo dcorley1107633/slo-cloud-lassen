@@ -36,18 +36,17 @@ Entra needs four addresses. SLO Cloud builds them for you from the address peopl
 1. Sign in to SLO Cloud as an administrator and open **Administration**, **Configuration**.
 2. In the card **Single Sign-On (SAML) Settings**, enter **Site Address**, for example `https://slo.example.edu`. Use only the address (https, no folder, no trailing path). If SLO Cloud is installed in a folder, that comes from **Base URL Path** at the top of the page and is added for you.
 3. Leave **Enable SAML SSO** off. Select **Save**.
-4. The card now shows **Values to enter at the identity provider**. Keep this page open; you will copy from it in section 4:
+4. The top of the card now shows **Copy these into your identity provider**. Keep this page open; you will copy from it in section 4. Each value is named after the Entra field it goes in:
 
-   | Shown by SLO Cloud | Used in Entra as |
-   |---|---|
-   | Identifier (Entity ID) | Identifier (Entity ID) |
-   | Reply URL (Assertion Consumer Service URL) | Reply URL |
-   | Sign-on URL | Sign on URL |
-   | Logout URL | Logout Url (optional) |
+   - Identifier (Entity ID)
+   - Reply URL (Assertion Consumer Service URL)
+   - Sign on URL
+   - Logout Url
+   - Metadata file (for Upload metadata file)
 
    They look like `https://slo.example.edu/saml/acs.php`. Entra and SLO Cloud compare them character by character, so copy them rather than retyping, and use the same host name in the browser as in **Site Address**.
 
-The three SP override fields lower in the card stay blank. They exist only for installations where the identity provider already has different addresses registered.
+The three override boxes under **Advanced** at the bottom of the card stay blank. They exist only for installations where the identity provider already has different addresses registered.
 
 The Entity ID is only an identifier. It happens to be the address of SLO Cloud's metadata page, but Entra does not need to reach it.
 
@@ -81,9 +80,9 @@ Assigning someone here lets them sign in at Microsoft. They still need an active
    |---|---|
    | Identifier (Entity ID) | the Identifier (Entity ID) from section 2. Select **Add identifier**, and mark it as **Default**. |
    | Reply URL (Assertion Consumer Service URL) | the Reply URL from section 2. Select **Add reply URL**. |
-   | Sign on URL | the Sign-on URL from section 2 |
+   | Sign on URL | the Sign on URL from section 2 |
    | Relay State (Optional) | leave empty |
-   | Logout Url (Optional) | the Logout URL from section 2 (leave empty if you do not want single logout) |
+   | Logout Url (Optional) | the Logout Url from section 2 (leave empty if you do not want single logout) |
 
 3. Select **Save**, then close the panel. If Entra offers a test, skip it for now.
 
@@ -129,9 +128,9 @@ On the **Single sign-on** page:
 
    | Entra shows | SLO Cloud setting |
    |---|---|
-   | **Login URL** | IdP SSO URL |
-   | **Microsoft Entra Identifier** | IdP Entity ID |
-   | **Logout URL** | IdP SLO URL (only if you want single logout) |
+   | **Login URL** | Login URL (IdP SSO URL) |
+   | **Microsoft Entra Identifier** | Microsoft Entra Identifier (IdP Entity ID) |
+   | **Logout URL** | Logout URL (IdP SLO URL), only if you want single logout |
 
    The Entra Identifier looks like `https://sts.windows.net/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/` and must be copied **with** its trailing slash.
 
@@ -143,22 +142,22 @@ On the **Single sign-on** page:
    | SLO Cloud field | Value |
    |---|---|
    | Enable SAML SSO | leave **off** until section 7 |
-   | IdP Entity ID | Microsoft Entra Identifier (with trailing slash) |
-   | IdP SSO URL | Login URL |
-   | IdP SLO URL | Logout URL from Entra, or empty for no single logout |
-   | IdP Signing Certificate | the full text of the downloaded certificate |
-   | IdP Signing Certificate (rollover) | empty for now (see section 11) |
+   | Microsoft Entra Identifier (IdP Entity ID) | Microsoft Entra Identifier (with trailing slash) |
+   | Login URL (IdP SSO URL) | Login URL |
+   | Logout URL (IdP SLO URL) | Logout URL from Entra, or empty for no single logout |
+   | Certificate (Base64): IdP signing certificate | the full text of the downloaded certificate |
+   | Certificate (Base64): rollover | empty for now (see section 11) |
    | IdP Display Name | `Microsoft` (shown as "Login with Microsoft") |
    | Site Address | already entered in section 2 |
-   | SP Entity ID, SP Assertion Consumer Service URL, SP Single Logout URL (override fields) | leave blank |
-   | Email Attribute Name | `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` |
-   | Full Name Attribute Name | `http://schemas.microsoft.com/identity/claims/displayname`, or empty |
+   | The three override boxes under **Advanced** | leave blank |
+   | Email Attribute Name | `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` (the default; `emailaddress` also works) |
+   | Full Name Attribute Name | empty (the default), or `http://schemas.microsoft.com/identity/claims/displayname` if you added that claim. Without it, an account created at sign-in is named by its email until an administrator renames it. |
    | Auto-Provision Accounts, Auto-Provision Email Domains | off and empty (see section 12) |
    | Force Re-Authentication | off |
    | Require Signed Response | **on** only if you chose `Sign SAML response and assertion` |
    | Sign Requests, Require Encrypted Assertions | off (see section 12) |
 
-3. Select **Save**. Settings are checked when **Enable SAML SSO** is ticked: if a value is unusable nothing is saved and the message says which (for example "IdP Signing Certificate is not a valid X.509 certificate").
+3. Select **Save**. Settings are checked when **Enable SAML SSO** is ticked: if a value is unusable nothing is saved and the message says which (for example "Certificate (Base64): IdP signing certificate is not a valid X.509 certificate").
 
 If you prefer to edit `config\config.yaml`, the same section looks like this (restart is not needed):
 
@@ -235,11 +234,11 @@ Where to look: **Administration, Activity Log** for the short reason, and the lo
 | `The Message of the Response is not signed and the SP requires it` | **Require Signed Response** is on in SLO Cloud but Entra only signs the assertion. Turn the setting off, or change Entra's Signing Option. |
 | `Response uses a SHA-1 signature` | Set **Signing Algorithm** to SHA-256 in Entra. |
 | `Invalid audience` | Entra's **Identifier (Entity ID)** differs from the Identifier SLO Cloud shows under Values to enter at the identity provider. Copy it again. |
-| `Invalid issuer` | **IdP Entity ID** is not the **Microsoft Entra Identifier**. Copy it again, including the trailing slash and the correct tenant. |
+| `Invalid issuer` | **Microsoft Entra Identifier (IdP Entity ID)** in SLO Cloud is not Entra's **Microsoft Entra Identifier**. Copy it again, including the trailing slash and the correct tenant. |
 | `The response was received at ... instead of ...`, `A valid SubjectConfirmation was not found` | The **Reply URL** in Entra differs from the Reply URL SLO Cloud shows, or users reach SLO Cloud by a different host name than **Site Address**. Make them identical and use that host name in the browser. |
 | `Could not validate timestamp: expired` / `not yet valid` | The server clock is wrong. Fix time synchronization on the SLO Cloud web server. |
 | `The InResponseTo of the Response ... does not match` | The response is for another sign-in. Start again from the login page. |
-| `Response has no usable email address` | Entra sent no email claim. Fill in **Email** on the user in Entra, or change the claim's source attribute to `user.userprincipalname` (section 5), and check **Email Attribute Name** matches the claim name exactly. |
+| `Response has no usable email address` | Entra sent no email claim. Fill in **Email** on the user in Entra, or change the claim's source attribute to `user.userprincipalname` (section 5), and check **Email Attribute Name** is the claim's full name or the short name Entra shows (`emailaddress`). |
 | `Unable to create the SAML request folder` | The web server account cannot write to `<data>\var`. Give it Modify access there. |
 
 ### Errors shown by Microsoft
@@ -259,10 +258,10 @@ Entra's SAML signing certificate expires (by default after three years) and Entr
 
 1. In Entra, open the application, **Single sign-on**, **SAML Certificates**, **Edit**, and select **New Certificate**, then **Save**. The new certificate is **inactive**.
 2. Select the three dots next to the new certificate and **Base64 certificate download**.
-3. In SLO Cloud, Configuration, paste the new certificate into **IdP Signing Certificate (rollover)** and **Save**. SLO Cloud now accepts responses signed with either certificate.
+3. In SLO Cloud, Configuration, paste the new certificate into **Certificate (Base64): rollover** and **Save**. SLO Cloud now accepts responses signed with either certificate.
 4. In Entra, select the three dots next to the new certificate and **Make certificate active**. Confirm.
 5. Test a sign-in.
-6. In SLO Cloud, move the new certificate into **IdP Signing Certificate**, clear the rollover field and **Save**.
+6. In SLO Cloud, move the new certificate into **Certificate (Base64): IdP signing certificate**, clear the rollover box and **Save**.
 
 ---
 

@@ -193,6 +193,28 @@ try {
     $check(false, 'NameID email fallback failed: ' . $e->getMessage());
 }
 
+// Entra's short claim names (as its Attributes & Claims page shows them) match the full names.
+try {
+    $identity = $validate($buildResponse(), '_req0123456789abcdef', ['attr_email' => 'emailaddress', 'attr_name' => 'DisplayName'] + $config);
+    $check($identity['email'] === 'faculty@example.edu', 'short claim name: wrong email');
+    $check($identity['name'] === 'Pat Faculty', 'short claim name: displayname not matched');
+} catch (Throwable $e) {
+    $check(false, 'short claim names were refused: ' . $e->getMessage());
+}
+
+$claims = [
+    EMAIL_CLAIM => ['entra@example.edu'],
+    'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name' => ['upn@example.edu'],
+    'urn:example:a/name' => ['other'],
+    'email' => ['okta@example.edu'],
+];
+$check(Saml::attributeValue($claims, EMAIL_CLAIM) === 'entra@example.edu', 'attributeValue: exact full name');
+$check(Saml::attributeValue($claims, 'emailaddress') === 'entra@example.edu', 'attributeValue: short name not matched');
+$check(Saml::attributeValue($claims, 'email') === 'okta@example.edu', 'attributeValue: an exact name must win over a suffix match');
+$check(Saml::attributeValue($claims, 'name') === '', 'attributeValue: a short name ending two attributes must match neither');
+$check(Saml::attributeValue($claims, 'urn:other:emailaddress') === '', 'attributeValue: a namespaced name must match exactly');
+$check(Saml::attributeValue($claims, 'surname') === '', 'attributeValue: a missing attribute must be empty');
+
 // --- refused responses -------------------------------------------------------
 $cases = [
     'unsigned response' => [$buildResponse(['sign_assertion' => false])],
@@ -238,7 +260,7 @@ foreach ([
     $check($error !== null && strlen($error->explanation) > 40, "{$expectedReason}: the explanation does not say what to do");
 }
 $audience = $reasonOf($buildResponse(['audience' => 'https://evil.example/']));
-$check($audience !== null && ($audience->details['SP Entity ID in SLO Cloud'] ?? '') === SP_ENTITY && ($audience->details['Audience in the response'] ?? '') === 'https://evil.example/', 'audience error does not show expected and received values: ' . json_encode($audience?->details));
+$check($audience !== null && ($audience->details['Identifier (Entity ID) in SLO Cloud'] ?? '') === SP_ENTITY && ($audience->details['Audience in the response'] ?? '') === 'https://evil.example/', 'audience error does not show expected and received values: ' . json_encode($audience?->details));
 $issuer = $reasonOf($buildResponse(['issuer' => 'https://sts.windows.net/other-tenant/']));
 $check($issuer !== null && ($issuer->details['Issuer in the response'] ?? '') === 'https://sts.windows.net/other-tenant/', 'issuer error does not show the received issuer: ' . json_encode($issuer?->details));
 $destination = $reasonOf($buildResponse(['destination' => 'https://evil.example/saml/acs.php']));

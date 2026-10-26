@@ -72,7 +72,7 @@ $theme->showHeader($context);
                                     <span class="visually-hidden">All applicable WCAG 2.2 Level A and AA criteria support conformance in the evaluated scope</span>
                                 </td>
                                 <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.7.md" class="btn btn-sm btn-primary">
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=assessment-page-vpat-v5.2.9.md" class="btn btn-sm btn-primary">
                                         <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
                                     </a>
                                 </td>
@@ -104,7 +104,7 @@ $theme->showHeader($context);
                                     <span class="visually-hidden">All applicable WCAG 2.2 Level A and AA criteria support conformance in the evaluated scope</span>
                                 </td>
                                 <td>
-                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.7.md" class="btn btn-sm btn-primary">
+                                    <a href="<?= BASE_URL ?>administration/vpat_view.php?doc=admin-interface-vpat-v5.2.9.md" class="btn btn-sm btn-primary">
                                         <i class="bi bi-filetype-md me-1" aria-hidden="true"></i> View current report
                                     </a>
                                 </td>

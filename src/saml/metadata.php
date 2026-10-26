@@ -34,7 +34,7 @@ try {
     Logger::getInstance()->error('SAML metadata could not be built: ' . $e->getMessage());
     http_response_code(404);
     header('Content-Type: text/plain; charset=UTF-8');
-    echo 'SAML metadata is not available. Set SP Entity ID and SP Assertion Consumer Service URL first.';
+    echo 'SAML metadata is not available. Enter Site Address in the Single Sign-On (SAML) Settings first.';
     exit;
 }
 

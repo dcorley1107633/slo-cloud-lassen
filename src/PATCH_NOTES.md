@@ -1,6 +1,48 @@
 # SLOCloud Patch Notes
 
-## Unreleased
+## v5.2.9 (2026-10-25)
+
+### Single sign-on
+
+- Email Attribute Name now defaults to Microsoft Entra ID's email claim
+  (`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`)
+  instead of Okta's `email`, and Full Name Attribute Name defaults to empty,
+  because Entra sends no display name claim unless one is added. Without a
+  name, an account created at sign-in is named by its email.
+- Both settings also accept the short claim names Entra shows under
+  Attributes & Claims, such as `emailaddress` or `displayname`. A short name
+  matches the one attribute whose full name ends in it; a namespaced name
+  must still match exactly.
+- A site that kept the old `email` default now also signs in with Entra's
+  email claim when no `email` attribute is sent, so it works without
+  editing the setting. Before, such a site fell back to the NameID, which
+  Entra fills with the user principal name.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.9 with no interface changes. Criterion results are carried forward.
+
+## v5.2.8 (2026-10-25)
+
+### Single sign-on
+
+- The Single Sign-On (SAML) Settings card uses Microsoft Entra ID's field
+  names, with the general SAML name in brackets for other identity
+  providers, and the same names appear in sign-in error messages, the
+  activity log and the Entra setup guide. The boxes for Entra's values are
+  now Microsoft Entra Identifier (IdP Entity ID), Login URL (IdP SSO URL),
+  Logout URL (IdP SLO URL) and Certificate (Base64). No setting was renamed
+  in config.yaml.
+- The values to copy into the identity provider are listed at the top of
+  the card under "Copy these into your identity provider", named exactly as
+  the Entra fields they go in (Identifier (Entity ID), Reply URL (Assertion
+  Consumer Service URL), Sign on URL, Logout Url). They used to sit below the
+  settings with names that matched neither Entra nor the boxes.
+- The three override boxes for those values are under a collapsed
+  "Advanced" section, and each shows the value in use as a grey placeholder.
+  Blank still means "built from Site Address". The section opens by itself
+  when an override is set.
 
 ### Administration
 
@@ -11,6 +53,14 @@
   (`app.improvement_strategies_enabled`). A card that is off is hidden and
   its save is refused. Values already saved are kept, and saving the other
   card does not clear them. Existing sites need no change.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.8. The new Advanced section on the SSO card is a native
+  `details`/`summary` disclosure, and the placeholders in its boxes add to
+  their visible labels and help text rather than replace them. A turned-off
+  assessment card is not rendered. Criterion results are carried forward.
 
 ## v5.2.7 (2026-10-24)
 

@@ -61,7 +61,7 @@ function activity_security_details(?string $metadataJson, string $description): 
         'saml_unsigned' => 'Identity provider response is not signed as required',
         'saml_bad_signature' => 'Identity provider signature could not be verified (wrong or replaced certificate)',
         'saml_bad_structure' => 'Identity provider response structure refused (possible tampering)',
-        'saml_wrong_audience' => 'Response addressed to a different SP Entity ID',
+        'saml_wrong_audience' => 'Response addressed to a different Identifier (Entity ID)',
         'saml_wrong_issuer' => 'Response from a different identity provider than configured',
         'saml_wrong_destination' => 'Response addressed to a different Reply URL than SLO Cloud\'s',
         'saml_clock' => 'Response outside its validity period (server clock?)',

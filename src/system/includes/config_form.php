@@ -160,6 +160,7 @@ function renderConfigField(string $key, array $meta, $value): string {
             $inputType = ($type === 'email') ? 'email' : 'text';
             $html .= '<input type="' . $inputType . '" class="form-control" id="' . htmlspecialchars($id) . '" ';
             $html .= 'name="' . htmlspecialchars($name) . '" value="' . htmlspecialchars((string)$value) . '"';
+            if (($meta['placeholder'] ?? '') !== '') $html .= ' placeholder="' . htmlspecialchars((string)$meta['placeholder']) . '"';
             if ($required) $html .= ' required';
             if ($required) $html .= ' aria-required="true"';
             $html .= $describedBy;
