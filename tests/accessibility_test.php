@@ -8,7 +8,7 @@ $check = static function (bool $condition, string $message) use (&$failures): vo
 $source = static fn(string $path): string => (string)file_get_contents(__DIR__ . '/../' . $path);
 
 $version = trim($source('src/VERSION'));
-$check($version === '5.2.10', 'Accessibility report test must track the current product version.');
+$check($version === '5.2.11', 'Accessibility report test must track the current product version.');
 
 $sharedCss = $source('src/system/accessibility.css');
 $check(str_contains($sharedCss, ':focus-visible'), 'Shared visible focus styling is missing.');
@@ -177,7 +177,7 @@ foreach ([
 
 foreach (['admin-interface', 'assessment-page'] as $reportName) {
     $report = $source("src/vpat/$reportName-vpat-v$version.md");
-    $check(str_contains($report, "5.2.10"), "$reportName VPAT does not identify the current version.");
+    $check(str_contains($report, "5.2.11"), "$reportName VPAT does not identify the current version.");
     $check(str_contains($report, 'claims WCAG 2.2 Level AA conformance for this scope'), "$reportName VPAT does not state the current Level AA claim.");
     $check(!str_contains($report, 'Partially Supports'), "$reportName current VPAT still contains partial-conformance language.");
     $check(!preg_match('/^\|\s*[1-4]\.\d+(?:\.\d+)?[^|]*\|\s*Partially Supports\s*\|/m', $report), "$reportName VPAT still contains a partially supporting WCAG result.");
@@ -187,8 +187,8 @@ foreach (['admin-interface', 'assessment-page'] as $reportName) {
 }
 
 $vpatIndex = $source('src/administration/vpat.php');
-$check(str_contains($vpatIndex, 'admin-interface-vpat-v5.2.10.md'), 'VPAT index does not link the current admin report.');
-$check(str_contains($vpatIndex, 'assessment-page-vpat-v5.2.10.md'), 'VPAT index does not link the current assessment report.');
+$check(str_contains($vpatIndex, 'admin-interface-vpat-v5.2.11.md'), 'VPAT index does not link the current admin report.');
+$check(str_contains($vpatIndex, 'assessment-page-vpat-v5.2.11.md'), 'VPAT index does not link the current assessment report.');
 $check(substr_count($vpatIndex, '<caption') >= 2, 'VPAT data tables lack accessible captions.');
 $check(substr_count($vpatIndex, 'Level AA: Supports') >= 2, 'VPAT index does not show both current scopes as supporting Level AA.');
 

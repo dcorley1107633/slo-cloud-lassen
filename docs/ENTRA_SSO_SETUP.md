@@ -221,7 +221,7 @@ Where to look: **Administration, Activity Log** for the short reason, and the lo
 | "SAML SSO is not fully configured" | A required field is empty or invalid. Open Configuration and select **Save**; the message lists the problem. Check the log file for "configuration is not usable". |
 | **Sign-in Not Started Here** ("You have arrived here unsolicited") | The sign-in began at Microsoft, not at SLO Cloud: the Entra Test button or a My Apps tile that does not start at SLO Cloud (section 8, section 9). Start from the login page. |
 | **Sign-in Expired** | The sign-in was already used (browser back button, a refresh), left open more than 10 minutes, or the data folder (`var\saml`) is not writable by the application. Start again from the login page. |
-| **Sign-in Could Not Be Validated** | The page says what failed and lists the values to compare (for example the Entity ID SLO Cloud expects and the one the response carried). The Activity Log shows a matching reason, and the log file has the technical detail. The next table lists the causes. |
+| **Sign-in Could Not Be Validated** | The page says what failed and what to check, with a reference such as `SSO-1A2B3C4D` and the time. It shows no values. Search the day's `app_YYYY-MM-DD.log` for the reference: that line has the technical reason and the values to compare (for example the Identifier (Entity ID) SLO Cloud expects and the one the response carried, or the attributes received and the NameID). The Activity Log shows a matching reason. The next table lists the causes. |
 | **Account Not Found** | The email Microsoft sent has no SLO Cloud user, and auto-provisioning is off or the email's domain is not listed. Compare the email shown on the page with the user list. Check section 5 (which Entra attribute holds the email). |
 | "Your account has been deactivated" | The SLO Cloud user is inactive. Reactivate it in Users. |
 
@@ -233,12 +233,12 @@ Where to look: **Administration, Activity Log** for the short reason, and the lo
 | `The Assertion of the Response is not signed` | **Signing Option** in Entra is set to sign only the response, or neither. Choose `Sign SAML assertion` or `Sign SAML response and assertion`. |
 | `The Message of the Response is not signed and the SP requires it` | **Require Signed Response** is on in SLO Cloud but Entra only signs the assertion. Turn the setting off, or change Entra's Signing Option. |
 | `Response uses a SHA-1 signature` | Set **Signing Algorithm** to SHA-256 in Entra. |
-| `Invalid audience` | Entra's **Identifier (Entity ID)** differs from the Identifier SLO Cloud shows under Values to enter at the identity provider. Copy it again. |
+| `Invalid audience` | Entra's **Identifier (Entity ID)** differs from the Identifier (Entity ID) SLO Cloud lists under Copy these into your identity provider. Copy it again. |
 | `Invalid issuer` | **Microsoft Entra Identifier (IdP Entity ID)** in SLO Cloud is not Entra's **Microsoft Entra Identifier**. Copy it again, including the trailing slash and the correct tenant. |
 | `The response was received at ... instead of ...`, `A valid SubjectConfirmation was not found` | The **Reply URL** in Entra differs from the Reply URL SLO Cloud shows, or users reach SLO Cloud by a different host name than **Site Address**. Make them identical and use that host name in the browser. |
 | `Could not validate timestamp: expired` / `not yet valid` | The server clock is wrong. Fix time synchronization on the SLO Cloud web server. |
 | `The InResponseTo of the Response ... does not match` | The response is for another sign-in. Start again from the login page. |
-| `Response has no usable email address` | Entra sent no email claim. Fill in **Email** on the user in Entra, or change the claim's source attribute to `user.userprincipalname` (section 5), and check **Email Attribute Name** is the claim's full name or the short name Entra shows (`emailaddress`). The page lists the attributes Entra actually sent. |
+| `Response has no usable email address` | Entra sent no email claim. Fill in **Email** on the user in Entra, or change the claim's source attribute to `user.userprincipalname` (section 5), and check **Email Attribute Name** is the claim's full name or the short name Entra shows (`emailaddress`). The log line lists the attributes Entra actually sent. |
 | `Unable to create the SAML request folder` | The web server account cannot write to `<data>\var`. Give it Modify access there. |
 
 ### Errors shown by Microsoft

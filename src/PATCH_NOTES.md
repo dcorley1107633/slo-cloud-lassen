@@ -1,5 +1,23 @@
 # SLOCloud Patch Notes
 
+## v5.2.11 (2026-10-25)
+
+### Single sign-on
+
+- The **Sign-in Could Not Be Validated** page no longer shows values from
+  the settings or the response (such as the configured identifiers, which
+  include the Entra tenant ID, the attributes received or the NameID). It
+  still says what failed and what to check, and adds a reference such as
+  `SSO-1A2B3C4D` and the time. The values go to the application log
+  (`app_YYYY-MM-DD.log`) on the same line as that reference, with the
+  technical reason. Some of these checks run before the response's signature
+  is trusted, so anyone could trigger them.
+
+### Accessibility
+
+- The administrative interface and LTI assessment entry VPATs are reissued
+  for 5.2.11 with no interface changes. Criterion results are carried forward.
+
 ## v5.2.10 (2026-10-25)
 
 ### Single sign-on

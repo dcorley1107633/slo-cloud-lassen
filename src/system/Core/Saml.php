@@ -16,10 +16,10 @@ require_once __DIR__ . '/../lib/autoload.php';
 /**
  * A sign-in the identity provider answered but SLO Cloud cannot accept.
  *
- * getMessage() is the technical reason (for the log file). explanation says
- * what is wrong and what to change, and details lists the values worth
- * comparing; both are shown to the person signing in, so neither may hold
- * anything secret. Values come from the response, so print them escaped.
+ * getMessage() is the technical reason and details lists the values worth
+ * comparing; both go to the log file only. explanation says what is wrong and
+ * what to change without quoting any value, and is shown to the person
+ * signing in.
  */
 final class SamlSignInError extends RuntimeException
 {
@@ -392,7 +392,7 @@ final class Saml
                 'Response has no usable email address',
                 'saml_no_email',
                 'The identity provider signed the user in but sent no usable email address, and SLO Cloud signs people in by email. '
-                . 'Make sure the user has an email in the identity provider and that Email Attribute Name is one of the attributes listed below.',
+                . 'Make sure the user has an email in the identity provider and that Email Attribute Name names an attribute it sends (the log lists the attributes received).',
                 [
                     'Email Attribute Name (SLO Cloud setting)' => $emailAttribute !== '' ? $emailAttribute : '(blank: NameID is used)',
                     'Attributes in the response' => $attributes === [] ? '(none)' : implode(', ', array_keys($attributes)),

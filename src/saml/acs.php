@@ -96,20 +96,28 @@ try {
     $userName  = $identity['name'];
 } catch (Throwable $e) {
     $reason = $e instanceof \SLOCloud\Core\SamlSignInError ? $e->reason : 'saml_invalid_response';
-    // The technical reason can quote values from the message, so it goes to the log file.
-    Logger::getInstance()->warning('SAML response rejected: ' . substr($e->getMessage(), 0, 500), [
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-    ]);
+    // The values worth comparing (settings, attributes received, NameID) go to the log file
+    // under a reference; the page shows only the explanation and that reference.
+    $reference = 'SSO-' . strtoupper(bin2hex(random_bytes(4)));
+    $logged = [];
+    foreach ($e instanceof \SLOCloud\Core\SamlSignInError ? $e->details : [] as $label => $value) {
+        $logged[] = $label . ': ' . ((string)$value !== '' ? (string)$value : '(empty)');
+    }
+    Logger::getInstance()->warning(
+        "SAML response rejected [{$reference}] ({$reason}): " . substr($e->getMessage(), 0, 500)
+            . ($logged !== [] ? ' | ' . implode(' | ', $logged) : ''),
+        ['ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown']
+    );
     Logger::getInstance()->security(Logger::EVENT_LOGIN_FAILED, 'Single sign-on failed: the identity provider response could not be validated',
         null, null, 'warning', false, ['reason' => $reason, 'method' => 'saml']);
 
-    // Say what is wrong and what to change; the values shown are escaped and hold no secrets.
     samlError(
-        $e instanceof \SLOCloud\Core\SamlSignInError
+        ($e instanceof \SLOCloud\Core\SamlSignInError
             ? $e->explanation
-            : 'The response from the identity provider could not be validated. Please contact your administrator.',
+            : 'The response from the identity provider could not be validated.')
+        . ' Give the reference below to your administrator.',
         200,
-        $e instanceof \SLOCloud\Core\SamlSignInError ? $e->details : [],
+        ['Reference' => $reference, 'Time' => date('Y-m-d H:i:s T')],
         'Sign-in Could Not Be Validated'
     );
 }
