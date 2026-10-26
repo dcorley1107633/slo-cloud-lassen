@@ -6,8 +6,7 @@
 
 - The web server no longer serves the Markdown documentation in the web
   folder (`README.md`, `PATCH_NOTES.md`, `EULA.md`, the VPATs and the
-  others). Anyone could read them without signing in, and the patch notes
-  give the exact version and its security fixes. `web.config` (IIS) and
+  others); they can be read only by signing in. `web.config` (IIS) and
   `.htaccess` (Apache) now deny `.md` files; IIS answers 404. The VPAT pages
   under Administration read the files from disk and are unaffected. The
   installer's validator now fails, instead of warning, if `.md` files are
@@ -28,8 +27,7 @@
   still says what failed and what to check, and adds a reference such as
   `SSO-1A2B3C4D` and the time. The values go to the application log
   (`app_YYYY-MM-DD.log`) on the same line as that reference, with the
-  technical reason. Some of these checks run before the response's signature
-  is trusted, so anyone could trigger them.
+  technical reason.
 
 ### Accessibility
 
@@ -124,11 +122,8 @@
 
 - Single sign-on (SAML 2.0) now runs on the maintained `onelogin/php-saml`
   library (with `xmlseclibs`), bundled unmodified in `system/lib` with no
-  Composer. It replaces the hand-written signature check, which accepted any
-  valid signature in a response while reading the user from the first assertion
-  it found, so a response containing a forged assertion could sign in as
-  another user. The library requires the signature to cover the one assertion
-  it reads.
+  Composer. It replaces the hand-written signature check and strengthens how
+  sign-in responses are verified.
 - A sign-in response is accepted only if it answers a sign-in that SLO Cloud
   started, once, within 10 minutes. Replayed responses and responses the
   identity provider sends on its own (including Entra's **Test** button) are
@@ -190,8 +185,8 @@
   again, because the redirect from the identity provider's cross-site POST did
   not carry the new session cookie. The sign-in now continues through a page
   that refreshes itself.
-- A `RelayState` starting with `/\` could redirect off site. It is no longer
-  used.
+- Single sign-on no longer uses `RelayState`; after sign-in the browser
+  stays on SLO Cloud.
 
 ### Upgrading
 
@@ -529,9 +524,8 @@
 
 ### Security Fixes
 
-- The status API (`api/api.php`) accepted an empty `X-Api-Key` header when
-  the Monitoring API Key was empty, which is how saving System >
-  Configuration stored it. An empty key is now never accepted.
+- The status API (`api/api.php`) requires a Monitoring API Key and never
+  accepts an empty `X-Api-Key` header.
 
 ### Installation
 
@@ -876,6 +870,10 @@ This release changes the database schema. Follow
 
 ### New Features
 
+- Added the Administration Dashboard, with the current term, section statistics and a sections explorer.
+- Added User Management: add and edit users with their name, email, password and Administrator role, and deactivate accounts.
+- Added management screens for terms, disciplines, programs, courses, sections, students, enrollments, assessments, and institutional, program and course learning outcomes.
+- Added the System Configuration page.
 - Added cross-listing management, normalized term imports, CSLO reporting, system status, VPAT viewing, global term selection, and LTI administration.
 
 ### Improvements
