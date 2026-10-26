@@ -200,7 +200,7 @@ Every change goes through the journal first (section 12). A step whose resource 
    - machine-level `SLOCLOUD_DATA_PATH` or `SLOCLOUD_ENV` already set to a different value (CONFIRM: another install on the server may rely on it).
 2. **Confirm**: type `YES` after the summary, plus any CONFIRM items.
 3. **IIS configuration backup** (`appcmd add backup`, plus a copy of `applicationHost.config`).
-4. **Windows features**: installs only the missing IIS role services and records exactly which were new.
+4. **Windows features**: installs only the missing IIS role services, naming each one rather than the groups (naming a group would also add its defaults, such as Directory Browsing), and records exactly which were new.
 5. **Shared packages**: Visual C++ runtime, URL Rewrite and the ODBC driver, each only if missing.
 6. **Folders**: `root`, `web`, `secrets`, `backup`, `data` (`logs`, `tmp`, `var`).
 7. **Source**: Git clone or fetch, then a forced checkout of the resolved commit (a local branch tracking origin when `-Ref` is a branch, so `git pull` works; detached for a tag or commit). Any local edits or untracked files in `repo` are discarded (and listed as a warning in the log and journal), the result is verified to match the commit exactly, and `core.autocrlf=false` is set in the repo so manual Git commands there can't rewrite line endings. Or a mirror of `-LocalSourcePath`.
@@ -263,9 +263,9 @@ Defaults come from `C:\ProgramData\SLOCloud5\installer\install-manifest.json`. Y
 
 | Area | Checks |
 |---|---|
-| IIS | Role services; W3SVC and WAS running; global modules (RewriteModule, FastCgiModule and others); site state, path and pool; anonymous identity; request limit; first `*.php` handler; FastCGI timeouts and environment |
+| IIS | Role services; W3SVC and WAS running; global modules (RewriteModule, FastCgiModule and others); WebDAV module not installed (WARN); site state, path and pool; directory browsing off for the site; anonymous identity; request limit; first `*.php` handler; FastCGI timeouts and environment |
 | Exposure | No site, application or virtual directory serves the root, `repo`, `secrets`, `data`, `backup` or `php` |
-| TLS | HTTP.sys `localhost:443` binding; certificate present, SAN `localhost`, not expiring within 30 days, has its private key |
+| TLS | HTTP.sys `localhost:443` binding; certificate present in the store the binding names (IIS uses `WebHosting`), SAN `localhost` for the installer's own certificate, not expiring within 30 days, has its private key. Each production `https` binding (INFO): SNI on, its certificate found, names cover the host (wildcards included), not expiring within 30 days, private key present, chains to a trusted root (WARN if not) |
 | PHP CLI | Version ≥ 8.1, NTS x64, Argon2id, loaded `php.ini`, `date.timezone`, required modules, ODBC driver registered |
 | Environment | Machine `SLOCLOUD_DATA_PATH`, `SLOCLOUD_ENV`, PATH entry |
 | ACLs | Effective app pool rights per folder (none / read / modify as in section 4); no access for broad groups |

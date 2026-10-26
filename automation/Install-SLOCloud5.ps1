@@ -97,16 +97,18 @@ Import-Module (Join-Path $ScriptRoot 'lib\SLOCloud5.Common.psm1') -Force -Disabl
 $Sources = Get-Content -LiteralPath (Join-Path $ScriptRoot 'sources.json') -Raw | ConvertFrom-Json
 
 # Build stamp (yyyyMMddHHmm): bump whenever this script or the module changes, so a log shows which copy ran.
-$InstallerBuild = '202610252343'
+$InstallerBuild = '202610260010'
 Write-Host "SLO Cloud 5 installer build $InstallerBuild" -ForegroundColor DarkGray
 
 $IisAppId = '{4dc3e181-e14b-4a21-b022-59fc669b0914}'   # well-known IIS application id for HTTP.sys bindings
 $PhpHandlerName = 'SLOCloud5-PHP_via_FastCGI'
 $RequiredPhpModules = @('PDO', 'pdo_sqlsrv', 'yaml', 'openssl', 'mbstring', 'curl', 'fileinfo', 'json', 'dom', 'iconv', 'session', 'Zend OPcache')
+# Only the role services SLO Cloud uses. Naming a group (Web-Server, Web-Common-Http, ...) would
+# also install that group's defaults, such as Directory Browsing; the groups themselves come in as
+# dependencies of these.
 $WindowsFeatures = @(
-    'Web-Server', 'Web-WebServer', 'Web-Common-Http', 'Web-Default-Doc', 'Web-Static-Content', 'Web-Http-Errors',
-    'Web-Health', 'Web-Http-Logging', 'Web-Request-Monitor', 'Web-Security', 'Web-Filtering', 'Web-App-Dev', 'Web-CGI',
-    'Web-Mgmt-Tools', 'Web-Mgmt-Console', 'Web-Scripting-Tools'
+    'Web-Default-Doc', 'Web-Static-Content', 'Web-Http-Errors', 'Web-Http-Logging', 'Web-Request-Monitor',
+    'Web-Filtering', 'Web-CGI', 'Web-Mgmt-Console', 'Web-Scripting-Tools'
 )
 $UnwantedFeatures = @('Web-Dir-Browsing', 'Web-DAV-Publishing', 'Web-Asp-Net45', 'Web-Asp-Net', 'Web-ASP')
 
@@ -449,7 +451,7 @@ function Step-WindowsFeatures {
         $op.inverse.instructions = $instructions + ' Installed by this run: ' + (@($op.after.newlyInstalled) -join ', ')
         Save-SloJournal
         foreach ($u in $UnwantedFeatures) {
-            if (@($op.after.newlyInstalled) -contains $u) { Add-SloWarning "Windows also installed $u as a default role service. SLO Cloud 5 does not need it; its web.config disables directory browsing. Remove it if your baseline forbids it." }
+            if (@($op.after.newlyInstalled) -contains $u) { Add-SloWarning "Windows also installed $u. SLO Cloud 5 does not need it (its web.config keeps directory browsing off). Remove it with Uninstall-WindowsFeature $u if no other site uses it." }
         }
     }
 }

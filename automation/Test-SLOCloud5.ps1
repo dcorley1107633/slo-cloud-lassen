@@ -52,6 +52,24 @@ function Invoke-Exe([string]$File, [string[]]$Arguments) {
     return [pscustomobject]@{ ExitCode = $code; Text = ($out -join "`n"); Output = $out }
 }
 
+# The certificate HTTP.sys serves for one binding (hostnameport for SNI, ipport otherwise), from the store the binding names.
+function Get-HttpSysCertificate([string]$Kind, [string]$Key) {
+    $show = Invoke-Exe "$env:windir\System32\netsh.exe" @('http', 'show', 'sslcert', "$Kind=$Key")
+    if ($show.Text -notmatch 'Certificate Hash\s*:\s*([0-9a-fA-F]{40})') { return $null }
+    $hash = $Matches[1].ToUpperInvariant()
+    $store = if ($show.Text -match 'Certificate Store Name\s*:\s*(\S+)' -and $Matches[1] -ne '(null)') { $Matches[1] } else { 'My' }
+    [pscustomobject]@{ Hash = $hash; Store = $store; Cert = (Get-Item -LiteralPath "Cert:\LocalMachine\$store\$hash" -ErrorAction SilentlyContinue) }
+}
+
+# True when a certificate name (exact, or a one-label *. wildcard) covers the host name.
+function Test-CertName([string[]]$Names, [string]$HostName) {
+    foreach ($n in $Names) {
+        if ($n -ieq $HostName) { return $true }
+        if ($n.StartsWith('*.') -and $HostName.IndexOf('.') -gt 0 -and $HostName.Substring($HostName.IndexOf('.')) -ieq $n.Substring(1)) { return $true }
+    }
+    return $false
+}
+
 # ---------------------------------------------------------------------------
 # Inputs
 # ---------------------------------------------------------------------------
@@ -99,9 +117,10 @@ $modules = @(Get-WebGlobalModule | ForEach-Object { $_.Name })
 foreach ($m in @('RewriteModule', 'FastCgiModule', 'RequestFilteringModule', 'StaticFileModule', 'DefaultDocumentModule', 'CustomErrorModule')) {
     if ($modules -contains $m) { Add-Result 'iis' 'PASS' "global module $m" } else { Add-Result 'iis' 'FAIL' "global module $m missing" }
 }
-foreach ($bad in @('DirectoryListingModule', 'WebDAVModule')) {
-    if ($modules -contains $bad) { Add-Result 'iis' 'WARN' "$bad is installed (not needed; web.config disables directory browsing)" }
-}
+# Directory listing is judged by the site's directoryBrowse setting (below), not by whether the
+# module is installed: the module does nothing until a site turns browsing on. WebDAV acts on
+# PUT/DELETE/OPTIONS as soon as its module is installed, even with authoring off.
+if ($modules -contains 'WebDAVModule') { Add-Result 'iis' 'WARN' 'WebDAVModule is installed; it handles PUT, DELETE and OPTIONS itself and can interfere with the application' }
 
 # ---------------------------------------------------------------------------
 # Site / pool / handler / FastCGI
@@ -122,10 +141,31 @@ if (-not $site) {
         if (([int]$flags -band 1) -eq 1) { Add-Result 'binding' 'PASS' 'https *:443:localhost with SNI' } else { Add-Result 'binding' 'WARN' 'https localhost binding is not SNI (sslFlags lacks 1)' }
     } else { Add-Result 'binding' 'FAIL' 'https *:443:localhost binding missing' }
     foreach ($b in $bindings) {
-        $hostPart = ($b.bindingInformation.Split(':') | Select-Object -Last 1)
-        if ($hostPart -and $hostPart -ine 'localhost') { Add-Result 'binding' 'WARN' "non-localhost binding present: $($b.protocol)/$($b.bindingInformation) (production bindings are an IT change)" }
+        $parts = $b.bindingInformation.Split(':')
+        $hostPart = $parts[-1]
         if ($b.protocol -eq 'http') { Add-Result 'binding' 'INFO' "HTTP binding present: $($b.bindingInformation)" }
+        if ($b.protocol -ne 'https' -or -not $hostPart -or $hostPart -ieq 'localhost') { continue }
+
+        # A production host name: set up by IT, not by the installer. Check the certificate users get.
+        Add-Result 'binding' 'INFO' "production binding https/$($b.bindingInformation)"
+        $flags = [int]$b.sslFlags
+        if (($flags -band 2) -eq 2) { Add-Result 'binding' 'INFO' "$hostPart uses the Central Certificate Store; its certificate is not checked here"; continue }
+        $sni = ($flags -band 1) -eq 1
+        if ($sni) { Add-Result 'binding' 'PASS' "$hostPart uses SNI" } else { Add-Result 'binding' 'WARN' "$hostPart is not SNI (sslFlags lacks 1); it shares the IP-wide certificate" }
+        $ipPart = if ($parts[0] -eq '*' -or $parts[0] -eq '') { '0.0.0.0' } else { $parts[0] }
+        $bound = if ($sni) { Get-HttpSysCertificate 'hostnameport' "$($hostPart):$($parts[1])" } else { Get-HttpSysCertificate 'ipport' "$($ipPart):$($parts[1])" }
+        if (-not $bound) { Add-Result 'tls' 'FAIL' "no HTTP.sys certificate binding for $hostPart"; continue }
+        if (-not $bound.Cert) { Add-Result 'tls' 'FAIL' "$hostPart certificate $($bound.Hash) not found in LocalMachine\$($bound.Store)"; continue }
+        $c = $bound.Cert
+        $names = @($c.DnsNameList | ForEach-Object { $_.Unicode })
+        if (Test-CertName $names $hostPart) { Add-Result 'tls' 'PASS' "$hostPart certificate (LocalMachine\$($bound.Store)) covers $hostPart" } else { Add-Result 'tls' 'FAIL' "$hostPart certificate names ($($names -join ', ')) do not cover $hostPart" }
+        if ($c.NotAfter -lt (Get-Date)) { Add-Result 'tls' 'FAIL' "$hostPart certificate expired $($c.NotAfter)" } elseif ($c.NotAfter -lt (Get-Date).AddDays(30)) { Add-Result 'tls' 'WARN' "$hostPart certificate expires $($c.NotAfter); renew it where it was issued" } else { Add-Result 'tls' 'PASS' "$hostPart certificate valid until $($c.NotAfter.ToString('yyyy-MM-dd'))" }
+        if (-not $c.HasPrivateKey) { Add-Result 'tls' 'FAIL' "$hostPart certificate has no private key" }
+        if ($c.Verify()) { Add-Result 'tls' 'PASS' "$hostPart certificate chains to a trusted root" } else { Add-Result 'tls' 'WARN' "$hostPart certificate does not chain to a trusted root on this server (self-signed or missing intermediate); browsers may reject it" }
     }
+
+    $browse = (Get-WebConfigurationProperty -PSPath "IIS:\Sites\$SiteName" -Filter 'system.webServer/directoryBrowse' -Name enabled).Value
+    if ($browse) { Add-Result 'site' 'FAIL' 'directory browsing is enabled for the site' } else { Add-Result 'site' 'PASS' 'directory browsing is off' }
 
     $anon = Get-WebConfiguration -PSPath $apphost -Location $SiteName -Filter 'system.webServer/security/authentication/anonymousAuthentication'
     if ($anon.enabled -and [string]$anon.userName -eq '') { Add-Result 'site' 'PASS' 'anonymous authentication uses the app pool identity' } else { Add-Result 'site' 'FAIL' "anonymous authentication enabled=$($anon.enabled) userName='$($anon.userName)'" }
